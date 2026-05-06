@@ -1,0 +1,839 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>管理后台 - 线上记账系统</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css">
+    <script src="https://cdn.jsdelivr.net/npm/echarts@5.4.3/dist/echarts.min.js"></script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', sans-serif;
+            background: linear-gradient(135deg, #f0f4ff 0%, #e6f2ff 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+        .container { max-width: 1400px; margin: 0 auto; }
+        @keyframes fadeInUp {
+            from { opacity: 0; transform: translateY(30px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        .fade-in { animation: fadeInUp 0.6s ease-out; }
+
+        .top-nav {
+            background: rgba(255,255,255,0.95);
+            backdrop-filter: blur(10px);
+            padding: 20px 30px;
+            border-radius: 15px;
+            margin-bottom: 30px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.08);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .top-nav h1 {
+            font-size: 1.6rem;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .top-nav-actions { display: flex; gap: 15px; align-items: center; }
+        .nav-btn {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 10px;
+            cursor: pointer;
+            transition: all 0.3s;
+            font-weight: 600;
+            font-size: 0.95rem;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            text-decoration: none;
+        }
+        .nav-btn-home { background: #f4f4f4; color: #666; }
+        .nav-btn-home:hover { transform: translateY(-2px); background: #e0e0e0; }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 16px;
+            margin-bottom: 25px;
+        }
+        .stat-card {
+            background: white;
+            border-radius: 15px;
+            padding: 22px 20px;
+            box-shadow: 0 2px 12px rgba(0,0,0,0.06);
+            text-align: center;
+            border: 1px solid rgba(0,0,0,0.04);
+            transition: all 0.3s;
+        }
+        .stat-card:hover { transform: translateY(-3px); box-shadow: 0 6px 24px rgba(0,0,0,0.1); }
+        .stat-label { font-size: 0.85rem; color: #888; margin-bottom: 8px; font-weight: 500; }
+        .stat-value { font-size: 1.6rem; font-weight: 700; }
+        .stat-value.income { color: #10b981; }
+        .stat-value.expense { color: #ef4444; }
+        .stat-value.net.positive { color: #10b981; }
+        .stat-value.net.negative { color: #ef4444; }
+        .stat-value.count { color: #667eea; }
+
+        .panel {
+            background: white;
+            border-radius: 15px;
+            padding: 24px;
+            margin-bottom: 25px;
+            box-shadow: 0 2px 12px rgba(0,0,0,0.06);
+        }
+        .panel-title {
+            font-size: 1.15rem;
+            font-weight: 700;
+            color: #333;
+            margin-bottom: 16px;
+            padding-bottom: 12px;
+            border-bottom: 2px solid #f0f0f0;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .user-table, .tx-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.9rem;
+        }
+        .user-table th, .tx-table th {
+            background: #f5f7ff;
+            padding: 10px 14px;
+            text-align: left;
+            font-weight: 600;
+            color: #555;
+            border-bottom: 2px solid #e0e0e0;
+            white-space: nowrap;
+        }
+        .user-table td, .tx-table td {
+            padding: 10px 14px;
+            border-bottom: 1px solid #f0f0f0;
+            color: #333;
+        }
+        .user-table tr:hover td, .tx-table tr:hover td { background: #f8f9ff; }
+
+        .badge-income { background: #d1fae5; color: #065f46; padding: 3px 10px; border-radius: 12px; font-size: 0.8rem; }
+        .badge-expense { background: #fee2e2; color: #991b1b; padding: 3px 10px; border-radius: 12px; font-size: 0.8rem; }
+
+        .readonly-badge {
+            display: inline-block;
+            background: #fef3c7;
+            color: #92400e;
+            padding: 4px 14px;
+            border-radius: 20px;
+            font-size: 0.8rem;
+            font-weight: 600;
+        }
+
+        .filter-bar {
+            display: flex;
+            gap: 12px;
+            flex-wrap: wrap;
+            margin-bottom: 16px;
+            align-items: center;
+        }
+        .filter-bar select, .filter-bar input {
+            padding: 8px 12px;
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+            font-size: 0.9rem;
+            outline: none;
+        }
+        .filter-bar select:focus, .filter-bar input:focus { border-color: #667eea; }
+        .filter-bar button {
+            padding: 8px 16px;
+            border: none;
+            border-radius: 8px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            cursor: pointer;
+            font-weight: 600;
+        }
+        .filter-bar button:hover { opacity: 0.9; }
+
+        .pagination-controls {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 6px;
+            margin-top: 16px;
+            flex-wrap: wrap;
+        }
+        .page-btn {
+            padding: 6px 14px;
+            border: 1px solid #e0e0e0;
+            border-radius: 6px;
+            background: white;
+            color: #555;
+            cursor: pointer;
+            font-size: 0.85rem;
+            transition: all 0.2s;
+        }
+        .page-btn:hover:not(:disabled):not(.active) { background: #f0f2ff; border-color: #4361ee; color: #4361ee; }
+        .page-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+        .page-btn.active { background: #4361ee; border-color: #4361ee; color: white; }
+
+        .empty-state { text-align: center; padding: 40px; color: #999; }
+        .empty-state i { font-size: 3rem; margin-bottom: 12px; opacity: 0.3; }
+
+        .table-wrap { overflow-x: auto; }
+
+        /* 图表样式 */
+        .chart-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 16px;
+            margin-bottom: 16px;
+        }
+        .chart-card {
+            background: white;
+            border-radius: 15px;
+            padding: 20px;
+            box-shadow: 0 2px 12px rgba(0,0,0,0.06);
+            border: 1px solid rgba(0,0,0,0.04);
+        }
+        .chart-card h3 {
+            font-size: 1rem;
+            font-weight: 600;
+            color: #555;
+            margin-bottom: 12px;
+            padding-bottom: 10px;
+            border-bottom: 2px solid #f0f0f0;
+        }
+        .chart-container {
+            width: 100%;
+            height: 320px;
+        }
+        .chart-full-width {
+            grid-column: 1 / -1;
+        }
+        .chart-card .chart-container {
+            height: 320px;
+        }
+
+        @media (max-width: 768px) {
+            body { padding: 10px; }
+            .top-nav { flex-direction: column; gap: 12px; padding: 16px; }
+            .top-nav h1 { font-size: 1.3rem; }
+            .top-nav-actions { width: 100%; }
+            .nav-btn { width: 100%; justify-content: center; }
+            .stats-grid { grid-template-columns: repeat(2, 1fr); gap: 10px; }
+            .stat-value { font-size: 1.3rem; }
+            .filter-bar { flex-direction: column; }
+            .filter-bar > * { width: 100%; }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- 顶部导航 -->
+        <div class="top-nav fade-in">
+            <h1><i class="bi bi-shield-lock"></i> 管理后台</h1>
+            <div class="top-nav-actions">
+                <span class="readonly-badge"><i class="bi bi-eye"></i> 只读模式 - 仅可查看数据</span>
+                <a href="/" class="nav-btn nav-btn-home"><i class="bi bi-house-door"></i> 返回首页</a>
+                <a href="/change-password" class="nav-btn nav-btn-home"><i class="bi bi-key"></i> 修改密码</a>
+                <a href="/logout" class="nav-btn nav-btn-home"><i class="bi bi-box-arrow-right"></i> 退出</a>
+            </div>
+        </div>
+
+        <!-- 统计卡片 -->
+        <div class="stats-grid fade-in">
+            <div class="stat-card">
+                <div class="stat-label"><i class="bi bi-wallet2"></i> 全平台总余额</div>
+                <div class="stat-value net {{ 'positive' if balance >= 0 else 'negative' }}">¥{{ "%.2f"|format(balance) }}</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label"><i class="bi bi-arrow-up-circle"></i> 总收入</div>
+                <div class="stat-value income">¥{{ "%.2f"|format(total_income) }}</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label"><i class="bi bi-arrow-down-circle"></i> 总支出</div>
+                <div class="stat-value expense">¥{{ "%.2f"|format(total_expense) }}</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label"><i class="bi bi-calendar-today"></i> 今日净收支</div>
+                <div class="stat-value net {{ 'positive' if today_income - today_expense >= 0 else 'negative' }}">¥{{ "%.2f"|format(today_income - today_expense) }}</div>
+            </div>
+        </div>
+
+        <!-- 按用户统计 -->
+        <div class="panel fade-in">
+            <div class="panel-title"><i class="bi bi-people"></i> 各用户数据统计</div>
+            <div class="table-wrap">
+                <table class="user-table">
+                    <thead>
+                        <tr>
+                            <th>用户名</th>
+                            <th>是否管理员</th>
+                            <th>交易笔数</th>
+                            <th>总收入</th>
+                            <th>总支出</th>
+                            <th>净余额</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for u in user_stats %}
+                        <tr>
+                            <td><strong>{{ u.username }}</strong></td>
+                            <td>
+                                {% if u.username == 'admin' %}
+                                <span class="badge bg-warning text-dark">管理员</span>
+                                {% else %}
+                                <span class="badge bg-secondary">普通用户</span>
+                                {% endif %}
+                            </td>
+                            <td>{{ u.count }}</td>
+                            <td class="text-success fw-bold">¥{{ "%.2f"|format(u.income) }}</td>
+                            <td class="text-danger fw-bold">¥{{ "%.2f"|format(u.expense) }}</td>
+                            <td class="fw-bold {{ 'text-success' if u.balance >= 0 else 'text-danger' }}">¥{{ "%.2f"|format(u.balance) }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- 数据分析看板 -->
+        <div class="panel fade-in">
+            <div class="panel-title"><i class="bi bi-graph-up"></i> 数据分析看板</div>
+            <div class="chart-grid">
+                <div class="chart-card">
+                    <h3><i class="bi bi-pie-chart"></i> 分类收支分布</h3>
+                    <div class="chart-container" id="categoryChart"></div>
+                </div>
+                <div class="chart-card">
+                    <h3><i class="bi bi-trending-up"></i> 月度收支趋势</h3>
+                    <div class="chart-container" id="trendChart"></div>
+                </div>
+                <div class="chart-card chart-full-width">
+                    <h3><i class="bi bi-bar-chart"></i> 用户收支对比</h3>
+                    <div class="chart-container" id="userChart"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 所有交易记录 -->
+        <div class="panel fade-in">
+            <div class="panel-title"><i class="bi bi-list-ul"></i> 全平台交易记录</div>
+            <div class="filter-bar">
+                <select id="userFilter">
+                    <option value="">全部用户</option>
+                    {% for u in users %}
+                    <option value="{{ u.id }}">{{ u.username }}</option>
+                    {% endfor %}
+                </select>
+                <select id="typeFilter">
+                    <option value="">全部类型</option>
+                    <option value="income">收入</option>
+                    <option value="expense">支出</option>
+                </select>
+                <select id="periodFilter">
+                    <option value="">全部时间</option>
+                    <option value="today">今天</option>
+                    <option value="week">最近7天</option>
+                    <option value="month">本月</option>
+                </select>
+                <button onclick="loadTransactions()"><i class="bi bi-search"></i> 查询</button>
+                <button class="nav-btn-home" onclick="resetFilters()" style="background:#f4f4f4;color:#666;border:none;padding:8px 16px;border-radius:8px;cursor:pointer;font-weight:600;">重置</button>
+            </div>
+            <div class="table-wrap">
+                <table class="tx-table" id="txTable">
+                    <thead>
+                        <tr>
+                            <th>用户</th>
+                            <th>时间</th>
+                            <th>类型</th>
+                            <th>金额</th>
+                            <th>分类</th>
+                            <th>备注</th>
+                        </tr>
+                    </thead>
+                    <tbody id="txBody">
+                        <tr><td colspan="6" class="text-center py-4 text-muted">加载中...</td></tr>
+                    </tbody>
+                </table>
+            </div>
+            <div class="pagination-controls" id="paginationControls"></div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        let allTxs = [];
+        let currentPage = 1;
+        const perPage = 15;
+
+        document.addEventListener('DOMContentLoaded', loadTransactions);
+
+        async function loadTransactions() {
+            try {
+                const res = await fetch('/api/transactions?limit=10000');
+                const data = await res.json();
+                if (data.success) {
+                    allTxs = data.transactions || [];
+                    applyFilters();
+                    renderCharts();
+                }
+            } catch (e) {
+                document.getElementById('txBody').innerHTML = '<tr><td colspan="6" class="text-center py-4 text-danger">加载失败</td></tr>';
+            }
+        }
+
+        function applyFilters() {
+            const userId = document.getElementById('userFilter').value;
+            const type = document.getElementById('typeFilter').value;
+            const period = document.getElementById('periodFilter').value;
+            const now = new Date();
+
+            let filtered = [...allTxs];
+
+            if (userId) {
+                filtered = filtered.filter(t => t.user_id == userId);
+            }
+            if (type) {
+                filtered = filtered.filter(t => t.type === type);
+            }
+            if (period === 'today') {
+                const today = now.toISOString().split('T')[0];
+                filtered = filtered.filter(t => t.date === today);
+            } else if (period === 'week') {
+                const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+                filtered = filtered.filter(t => new Date(t.date) >= weekAgo);
+            } else if (period === 'month') {
+                const month = now.toISOString().substring(0, 7);
+                filtered = filtered.filter(t => t.date && t.date.startsWith(month));
+            }
+
+            currentPage = 1;
+            renderTable(filtered);
+        }
+
+        function resetFilters() {
+            document.getElementById('userFilter').value = '';
+            document.getElementById('typeFilter').value = '';
+            document.getElementById('periodFilter').value = '';
+            currentPage = 1;
+            renderTable(allTxs);
+        }
+
+        function renderTable(transactions) {
+            const tbody = document.getElementById('txBody');
+
+            if (transactions.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="6" class="text-center py-4 text-muted">暂无交易记录</td></tr>';
+                document.getElementById('paginationControls').innerHTML = '';
+                return;
+            }
+
+            const totalPages = Math.ceil(transactions.length / perPage);
+            const start = (currentPage - 1) * perPage;
+            const end = Math.min(start + perPage, transactions.length);
+            const pageData = transactions.slice(start, end);
+
+            tbody.innerHTML = pageData.map(t => `
+                <tr>
+                    <td><span class="badge bg-info text-dark">${t.username || '未知'}</span></td>
+                    <td>${t.date} ${t.time || ''}</td>
+                    <td><span class="${t.type === 'income' ? 'badge-income' : 'badge-expense'}">${t.type === 'income' ? '收入' : '支出'}</span></td>
+                    <td class="fw-bold ${t.type === 'income' ? 'text-success' : 'text-danger'}">${t.type === 'income' ? '+' : '-'}¥${parseFloat(t.amount).toFixed(2)}</td>
+                    <td>${t.category || '-'}</td>
+                    <td>${t.remark || '-'}</td>
+                </tr>
+            `).join('');
+
+            renderPagination(transactions.length, totalPages);
+        }
+
+        function renderPagination(total, totalPages) {
+            const container = document.getElementById('paginationControls');
+            if (totalPages <= 1) {
+                container.innerHTML = `<small class="text-muted">共 ${total} 条记录</small>`;
+                return;
+            }
+
+            let html = `<small class="text-muted me-2">共 ${total} 条</small>`;
+            html += `<button class="page-btn" onclick="goPage(${currentPage - 1})" ${currentPage <= 1 ? 'disabled' : ''}><i class="bi bi-chevron-left"></i></button>`;
+
+            let start = Math.max(1, currentPage - 2);
+            let end = Math.min(totalPages, currentPage + 2);
+            if (start > 1) {
+                html += `<button class="page-btn" onclick="goPage(1)">1</button>`;
+                if (start > 2) html += `<span class="page-btn" style="border:none;cursor:default;">...</span>`;
+            }
+            for (let i = start; i <= end; i++) {
+                html += `<button class="page-btn ${i === currentPage ? 'active' : ''}" onclick="goPage(${i})">${i}</button>`;
+            }
+            if (end < totalPages) {
+                if (end < totalPages - 1) html += `<span class="page-btn" style="border:none;cursor:default;">...</span>`;
+                html += `<button class="page-btn" onclick="goPage(${totalPages})">${totalPages}</button>`;
+            }
+            html += `<button class="page-btn" onclick="goPage(${currentPage + 1})" ${currentPage >= totalPages ? 'disabled' : ''}><i class="bi bi-chevron-right"></i></button>`;
+
+            container.innerHTML = html;
+        }
+
+        function goPage(page) {
+            const filtered = getCurrentFiltered();
+            const totalPages = Math.ceil(filtered.length / perPage);
+            if (page < 1 || page > totalPages) return;
+            currentPage = page;
+            renderTable(filtered);
+        }
+
+        function getCurrentFiltered() {
+            const userId = document.getElementById('userFilter').value;
+            const type = document.getElementById('typeFilter').value;
+            const period = document.getElementById('periodFilter').value;
+            const now = new Date();
+            let filtered = [...allTxs];
+            if (userId) filtered = filtered.filter(t => t.user_id == userId);
+            if (type) filtered = filtered.filter(t => t.type === type);
+            if (period === 'today') {
+                const today = now.toISOString().split('T')[0];
+                filtered = filtered.filter(t => t.date === today);
+            } else if (period === 'week') {
+                const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+                filtered = filtered.filter(t => new Date(t.date) >= weekAgo);
+            } else if (period === 'month') {
+                const month = now.toISOString().substring(0, 7);
+                filtered = filtered.filter(t => t.date && t.date.startsWith(month));
+            }
+            return filtered;
+        }
+
+        // ==================== 图表渲染 ====================
+        let categoryChartInstance = null;
+        let trendChartInstance = null;
+        let userChartInstance = null;
+
+        function renderCharts() {
+            if (typeof echarts === 'undefined') return;
+            renderCategoryChart();
+            renderTrendChart();
+            renderUserChart();
+        }
+
+        // 全平台分类收支分布（饼图，含收入和支出）
+        function renderCategoryChart() {
+            const dom = document.getElementById('categoryChart');
+            if (!dom) return;
+            if (!categoryChartInstance) {
+                categoryChartInstance = echarts.init(dom);
+            }
+
+            const incomeMap = {};
+            const expenseMap = {};
+            allTxs.forEach(t => {
+                const cat = t.category || '未分类';
+                const amt = parseFloat(t.amount || 0);
+                if (t.type === 'income') {
+                    incomeMap[cat] = (incomeMap[cat] || 0) + amt;
+                } else {
+                    expenseMap[cat] = (expenseMap[cat] || 0) + amt;
+                }
+            });
+
+            // 收入用绿色系，支出用红色系
+            const incomeColors = ['#10b981', '#34d399', '#6ee7b7', '#a7f3d0', '#d1fae5'];
+            const expenseColors = ['#ef4444', '#f87171', '#fca5a5', '#fecaca', '#fee2e2'];
+            const incomeData = Object.entries(incomeMap)
+                .map(([name, value]) => ({ name: '收入·' + name, value: Math.round(value * 100) / 100 }))
+                .sort((a, b) => b.value - a.value);
+            const expenseData = Object.entries(expenseMap)
+                .map(([name, value]) => ({ name: '支出·' + name, value: Math.round(value * 100) / 100 }))
+                .sort((a, b) => b.value - a.value);
+            const allData = [...incomeData, ...expenseData];
+            const colors = [
+                ...incomeColors.slice(0, incomeData.length).map((c, i) =>
+                    incomeData.length <= 5 ? c : (i => 0.3 + 0.7 * (1 - i / incomeData.length))),
+                ...expenseColors.slice(0, expenseData.length).map((c, i) =>
+                    expenseData.length <= 5 ? c : (i => 0.3 + 0.7 * (1 - i / expenseData.length)))
+            ];
+
+            // 静态调色板：收入类绿色，支出类红色
+            const palette = [];
+            incomeData.forEach((_, i) => {
+                const t = incomeData.length > 1 ? i / (incomeData.length - 1) : 0;
+                const r = Math.round(16 + t * 8);
+                const g = Math.round(185 - t * 60);
+                const b = Math.round(129 - t * 40);
+                palette.push(`rgb(${r},${g},${b})`);
+            });
+            expenseData.forEach((_, i) => {
+                const t = expenseData.length > 1 ? i / (expenseData.length - 1) : 0;
+                const r = Math.round(239 - t * 30);
+                const g = Math.round(68 + t * 40);
+                const b = Math.round(68 + t * 30);
+                palette.push(`rgb(${r},${g},${b})`);
+            });
+
+            const option = {
+                title: {
+                    text: '收入 · 绿色 | 支出 · 红色',
+                    left: 'center',
+                    top: 0,
+                    textStyle: { fontSize: 12, color: '#999', fontWeight: 400 }
+                },
+                tooltip: {
+                    trigger: 'item',
+                    formatter: function(params) {
+                        const label = params.name || '';
+                        const parts = label.split('·');
+                        const typeLabel = parts[0] === '收入' ? '💰 收入' : '💸 支出';
+                        return typeLabel + ' · ' + (parts[1] || parts[0]) + '<br/>' +
+                            '<strong>¥' + params.value.toFixed(2) + '</strong> (' + params.percent + '%)';
+                    }
+                },
+                legend: {
+                    bottom: 5,
+                    type: 'scroll',
+                    formatter: function(name) {
+                        return name.replace('收入·', '').replace('支出·', '');
+                    }
+                },
+                series: [{
+                    type: 'pie',
+                    radius: ['35%', '60%'],
+                    center: ['50%', '45%'],
+                    data: allData.map((d, i) => ({ ...d, itemStyle: { color: palette[i] || '#ccc' } })),
+                    label: {
+                        formatter: function(params) {
+                            const name = params.name.replace('收入·', '').replace('支出·', '');
+                            return name + '\n¥' + params.value.toFixed(0);
+                        },
+                        fontSize: 11
+                    },
+                    emphasis: {
+                        label: { show: true, fontSize: 14, fontWeight: 'bold' },
+                        itemStyle: { shadowBlur: 10, shadowColor: 'rgba(0,0,0,0.2)' }
+                    }
+                }]
+            };
+
+            if (allData.length === 0) {
+                option.title = {
+                    text: '暂无分类数据',
+                    left: 'center',
+                    top: 'center',
+                    textStyle: { color: '#ccc', fontSize: 16 }
+                };
+                option.series[0].data = [];
+            }
+
+            categoryChartInstance.setOption(option, true);
+            window.addEventListener('resize', () => categoryChartInstance.resize());
+        }
+
+        // 月度收支趋势折线图
+        function renderTrendChart() {
+            const dom = document.getElementById('trendChart');
+            if (!dom) return;
+            if (!trendChartInstance) {
+                trendChartInstance = echarts.init(dom);
+            }
+
+            const map = {};
+            allTxs.forEach(t => {
+                const month = t.date ? t.date.substring(0, 7) : null;
+                if (!month) return;
+                if (!map[month]) map[month] = { income: 0, expense: 0 };
+                const amt = parseFloat(t.amount || 0);
+                if (t.type === 'income') map[month].income += amt;
+                else map[month].expense += amt;
+            });
+
+            const months = Object.keys(map).sort().slice(-12);
+            const incomeData = months.map(m => Math.round(map[m].income * 100) / 100);
+            const expenseData = months.map(m => Math.round(map[m].expense * 100) / 100);
+
+            const option = {
+                tooltip: {
+                    trigger: 'axis',
+                    axisPointer: { type: 'cross' },
+                    formatter: function(params) {
+                        let result = '<strong>' + params[0].axisValue + '</strong><br>';
+                        params.forEach(p => {
+                            result += p.marker + ' ' + p.seriesName + ': ¥' + p.value.toFixed(2) + '<br>';
+                        });
+                        return result;
+                    }
+                },
+                legend: {
+                    data: ['收入', '支出'],
+                    bottom: 5
+                },
+                grid: {
+                    left: '3%',
+                    right: '4%',
+                    bottom: '15%',
+                    top: '10%',
+                    containLabel: true
+                },
+                xAxis: {
+                    type: 'category',
+                    data: months.length > 0 ? months : [],
+                    axisLabel: { rotate: months.length > 6 ? 30 : 0 }
+                },
+                yAxis: {
+                    type: 'value',
+                    name: '金额（¥）'
+                },
+                series: [
+                    {
+                        name: '收入',
+                        type: 'line',
+                        data: incomeData,
+                        smooth: true,
+                        itemStyle: { color: '#10b981' },
+                        lineStyle: { width: 3 },
+                        areaStyle: {
+                            color: {
+                                type: 'linear', x: 0, y: 0, x2: 0, y2: 1,
+                                colorStops: [
+                                    { offset: 0, color: 'rgba(16, 185, 129, 0.3)' },
+                                    { offset: 1, color: 'rgba(16, 185, 129, 0.05)' }
+                                ]
+                            }
+                        }
+                    },
+                    {
+                        name: '支出',
+                        type: 'line',
+                        data: expenseData,
+                        smooth: true,
+                        itemStyle: { color: '#ef4444' },
+                        lineStyle: { width: 3 },
+                        areaStyle: {
+                            color: {
+                                type: 'linear', x: 0, y: 0, x2: 0, y2: 1,
+                                colorStops: [
+                                    { offset: 0, color: 'rgba(239, 68, 68, 0.3)' },
+                                    { offset: 1, color: 'rgba(239, 68, 68, 0.05)' }
+                                ]
+                            }
+                        }
+                    }
+                ]
+            };
+
+            if (months.length === 0) {
+                option.title = {
+                    text: '暂无月度数据',
+                    left: 'center',
+                    top: 'center',
+                    textStyle: { color: '#ccc', fontSize: 16 }
+                };
+            }
+
+            trendChartInstance.setOption(option, true);
+            window.addEventListener('resize', () => trendChartInstance.resize());
+        }
+
+        // 用户收支对比柱状图
+        function renderUserChart() {
+            const dom = document.getElementById('userChart');
+            if (!dom) return;
+            if (!userChartInstance) {
+                userChartInstance = echarts.init(dom);
+            }
+
+            const map = {};
+            allTxs.forEach(t => {
+                const key = t.user_id;
+                if (!key) return;
+                if (!map[key]) {
+                    map[key] = { name: t.username || '用户' + key, income: 0, expense: 0 };
+                }
+                const amt = parseFloat(t.amount || 0);
+                if (t.type === 'income') map[key].income += amt;
+                else map[key].expense += amt;
+            });
+
+            const users = Object.values(map);
+            const names = users.map(u => u.name);
+            const incomeData = users.map(u => Math.round(u.income * 100) / 100);
+            const expenseData = users.map(u => Math.round(u.expense * 100) / 100);
+
+            const option = {
+                tooltip: {
+                    trigger: 'axis',
+                    axisPointer: { type: 'shadow' },
+                    formatter: function(params) {
+                        let result = '<strong>' + params[0].axisValue + '</strong><br>';
+                        params.forEach(p => {
+                            result += p.marker + ' ' + p.seriesName + ': ¥' + p.value.toFixed(2) + '<br>';
+                        });
+                        return result;
+                    }
+                },
+                legend: {
+                    data: ['收入', '支出'],
+                    bottom: 5
+                },
+                grid: {
+                    left: '3%',
+                    right: '4%',
+                    bottom: '15%',
+                    top: '10%',
+                    containLabel: true
+                },
+                xAxis: {
+                    type: 'category',
+                    data: names,
+                    axisLabel: { rotate: names.length > 4 ? 15 : 0 }
+                },
+                yAxis: {
+                    type: 'value',
+                    name: '金额（¥）'
+                },
+                series: [
+                    {
+                        name: '收入',
+                        type: 'bar',
+                        data: incomeData,
+                        itemStyle: {
+                            color: '#10b981',
+                            borderRadius: [4, 4, 0, 0]
+                        },
+                        barMaxWidth: 40
+                    },
+                    {
+                        name: '支出',
+                        type: 'bar',
+                        data: expenseData,
+                        itemStyle: {
+                            color: '#ef4444',
+                            borderRadius: [4, 4, 0, 0]
+                        },
+                        barMaxWidth: 40
+                    }
+                ]
+            };
+
+            if (users.length === 0) {
+                option.title = {
+                    text: '暂无用户数据',
+                    left: 'center',
+                    top: 'center',
+                    textStyle: { color: '#ccc', fontSize: 16 }
+                };
+            }
+
+            userChartInstance.setOption(option, true);
+            window.addEventListener('resize', () => userChartInstance.resize());
+        }
+    </script>
+</body>
+</html>

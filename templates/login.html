@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="zh-cn">
+<head>
+    <meta charset="UTF-8">
+    <title>用户登录</title>
+    <link rel="stylesheet" href="/static/css/style.css">
+    <style>
+        body {background: linear-gradient(135deg,#e0ecff 0%,#f7fafd 100%) fixed;min-height: 100vh;}
+        .login-container {width:370px;margin:110px auto 0;padding:38px 36px 28px 36px;box-shadow:0 8px 32px rgba(67,134,255,0.07),0 1.5px 12px #dbe7fa;border-radius:20px;background:#fff;text-align:center;}
+        .login-logo{height:62px;margin-bottom:12px;display:flex;align-items:center;justify-content:center;}
+        .login-logo span{font-size:33px;font-weight:700;color:#409EFF;letter-spacing:3px;}
+        input[type=text], input[type=password] {width:96%;padding:13px;margin:13px 0 0;border-radius:8px;border:1.2px solid #c7d3e5;transition:.2s;font-size:17px;background:#f8fbff;}
+        input[type=text]:focus, input[type=password]:focus {outline:none;border: 1.8px solid #409EFF;background: #f4f9ff;}
+        button {background:linear-gradient(80deg,#53b8ff 0%, #409EFF 90%);color:#fff;font-size:17px;padding:10px 44px;border:none;border-radius:7px;margin-top:18px;cursor:pointer;font-weight:600;box-shadow:0 2px 8px rgba(64,158,255,.09);transition:.18s;}
+        button:hover {box-shadow:0 5px 15px #a2c8fd29;transform:translateY(-1px);background:linear-gradient(80deg,#439dff 0%, #227ada 100%);}
+        a {color:#409EFF;text-decoration:none;}
+        a:hover {text-decoration:underline;text-shadow:0 1px 4px #e7f0ff};
+        h2{margin-bottom:24px;color:#3375b9;font-size:1.2rem;}
+        .error-msg{padding:10px 0 7px;color:#e94848;font-weight:500;font-size:15px;background:#ffeaea;border-radius:6px;margin:16px 0;}
+        .success-msg{padding:10px 0 7px;color:#2e9855;font-weight:500;font-size:15px;background:#eafcee;border-radius:6px;margin:16px 0;}
+
+        /* 角色切换 */
+        .role-switch {display:flex;background:#f0f4ff;border-radius:10px;padding:4px;margin-bottom:20px;}
+        .role-btn {flex:1;padding:10px 0;border:none;border-radius:8px;cursor:pointer;font-weight:600;font-size:15px;color:#888;background:transparent;transition:all .25s;}
+        .role-btn.active {background:#fff;color:#409EFF;box-shadow:0 2px 8px rgba(64,158,255,.15);}
+        .role-btn:hover:not(.active){color:#409EFF;}
+        .login-links{margin-top:23px;font-size:15px;}
+    </style>
+</head>
+<body>
+    <div class="login-container">
+        <div class="login-logo"><span>线上记账系统</span></div>
+        <div class="role-switch">
+            <button type="button" class="role-btn active" id="roleUser" onclick="switchRole('user')">普通用户</button>
+            <button type="button" class="role-btn" id="roleAdmin" onclick="switchRole('admin')">管理员</button>
+        </div>
+        <form method="post" action="/login">
+            <input type="hidden" name="role" id="roleInput" value="user">
+            <label>用户名：<input type="text" name="username" required autofocus></label><br>
+            <label>密码：<input type="password" name="password" required></label><br>
+            <button type="submit" id="loginBtn">登 录</button>
+        </form>
+        {% if error %}<div class="error-msg">{{ error }}</div>{% endif %}
+        {% if reset_success %}<div class="success-msg">密码重置成功，请使用新密码登录</div>{% endif %}
+        <div class="login-links" id="registerLink">没有账号？<a href="/register">去注册</a> | <a href="/forgot-password">忘记密码</a></div>
+    </div>
+    <script>
+        function switchRole(role) {
+            document.getElementById('roleInput').value = role;
+            document.querySelectorAll('.role-btn').forEach(b => b.classList.remove('active'));
+            document.getElementById(role === 'user' ? 'roleUser' : 'roleAdmin').classList.add('active');
+            document.getElementById('loginBtn').textContent = role === 'admin' ? '管理员登录' : '登 录';
+            document.getElementById('registerLink').style.display = role === 'admin' ? 'none' : '';
+        }
+    </script>
+</body>
+</html>

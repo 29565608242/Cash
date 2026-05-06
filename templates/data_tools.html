@@ -1,0 +1,543 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>数据工具 - 线上记账系统</title>
+    <script src="https://cdn.jsdelivr.net/npm/echarts@5.4.3/dist/echarts.min.js"></script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', sans-serif;
+            background: linear-gradient(135deg, #f0f4ff 0%, #e6f2ff 100%);
+            min-height: 100vh;
+            padding: 20px;
+            line-height: 1.6;
+        }
+        .container { max-width: 1100px; margin: 0 auto; }
+        @keyframes fadeInUp {
+            from { opacity: 0; transform: translateY(30px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        .fade-in { animation: fadeInUp 0.6s ease-out; }
+
+        /* 顶部导航 */
+        .top-nav {
+            background: rgba(255,255,255,0.95);
+            backdrop-filter: blur(10px);
+            padding: 20px 30px;
+            border-radius: 15px;
+            margin-bottom: 30px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.08);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .top-nav h1 {
+            font-size: 1.6rem;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .top-nav-actions { display: flex; gap: 15px; align-items: center; }
+        .nav-btn {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 10px;
+            cursor: pointer;
+            transition: all 0.3s;
+            font-weight: 600;
+            font-size: 0.95rem;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            text-decoration: none;
+        }
+        .nav-btn-home { background: #f4f4f4; color: #666; }
+        .nav-btn-home:hover { transform: translateY(-2px); background: #e0e0e0; }
+
+        /* Tab 切换 */
+        .tab-bar {
+            display: flex;
+            gap: 4px;
+            background: rgba(255,255,255,0.9);
+            padding: 5px;
+            border-radius: 14px;
+            margin-bottom: 25px;
+            box-shadow: 0 2px 12px rgba(0,0,0,0.06);
+        }
+        .tab-btn {
+            flex: 1;
+            padding: 14px 24px;
+            border: none;
+            border-radius: 10px;
+            cursor: pointer;
+            font-weight: 600;
+            font-size: 1rem;
+            color: #999;
+            background: transparent;
+            transition: all 0.3s;
+        }
+        .tab-btn.active {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            box-shadow: 0 4px 15px rgba(102,126,234,0.3);
+        }
+        .tab-btn:hover:not(.active) { background: #f0f0f0; }
+
+        .tab-content { display: none; }
+        .tab-content.active { display: block; }
+
+        /* 面板样式 */
+        .panel {
+            background: rgba(255,255,255,0.95);
+            border-radius: 15px;
+            padding: 30px;
+            margin-bottom: 25px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.06);
+        }
+        .panel-title {
+            font-size: 1.2rem;
+            font-weight: 700;
+            color: #333;
+            margin-bottom: 20px;
+            padding-bottom: 12px;
+            border-bottom: 2px solid #f0f0f0;
+        }
+
+        /* 表单 */
+        .form-group {
+            margin-bottom: 18px;
+        }
+        .form-group label {
+            display: block;
+            font-weight: 600;
+            color: #555;
+            margin-bottom: 6px;
+            font-size: 0.95rem;
+        }
+        .form-group input, .form-group select {
+            width: 100%;
+            padding: 10px 14px;
+            border: 2px solid #e0e0e0;
+            border-radius: 10px;
+            font-size: 0.95rem;
+            transition: border-color 0.3s;
+            outline: none;
+            background: white;
+        }
+        .form-group input:focus, .form-group select:focus {
+            border-color: #667eea;
+        }
+        .form-row {
+            display: flex;
+            gap: 15px;
+        }
+        .form-row .form-group { flex: 1; }
+
+        /* 文件上传区域 */
+        .upload-zone {
+            border: 2px dashed #ccc;
+            border-radius: 12px;
+            padding: 40px 20px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.3s;
+            background: #fafbff;
+        }
+        .upload-zone:hover, .upload-zone.dragover {
+            border-color: #667eea;
+            background: #f0f2ff;
+        }
+        .upload-zone-icon {
+            font-size: 3rem;
+            margin-bottom: 10px;
+        }
+        .upload-zone-text {
+            color: #999;
+            font-size: 1rem;
+        }
+        .upload-zone-text strong { color: #667eea; }
+        .upload-zone input[type="file"] { display: none; }
+        .upload-info {
+            margin-top: 12px;
+            color: #999;
+            font-size: 0.85rem;
+        }
+
+        /* 按钮 */
+        .btn {
+            padding: 12px 28px;
+            border: none;
+            border-radius: 10px;
+            cursor: pointer;
+            font-weight: 600;
+            font-size: 0.95rem;
+            transition: all 0.3s;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .btn-primary {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            box-shadow: 0 4px 15px rgba(102,126,234,0.3);
+        }
+        .btn-primary:hover { transform: translateY(-2px); box-shadow: 0 6px 20px rgba(102,126,234,0.4); }
+        .btn-primary:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+        .btn-success {
+            background: linear-gradient(135deg, #43e97b 0%, #38f9d7 100%);
+            color: white;
+            box-shadow: 0 4px 15px rgba(67,233,123,0.3);
+        }
+        .btn-success:hover { transform: translateY(-2px); }
+        .btn-danger {
+            background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+            color: white;
+        }
+        .btn-outline {
+            background: white;
+            color: #667eea;
+            border: 2px solid #667eea;
+        }
+        .btn-outline:hover { background: #f0f2ff; }
+        .btn-sm { padding: 8px 16px; font-size: 0.85rem; }
+
+        /* 预览表格 */
+        .table-wrap {
+            overflow-x: auto;
+            margin: 15px 0;
+        }
+        table.preview-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.9rem;
+        }
+        table.preview-table th {
+            background: #f5f7ff;
+            padding: 10px 12px;
+            text-align: left;
+            font-weight: 600;
+            color: #555;
+            border-bottom: 2px solid #e0e0e0;
+            white-space: nowrap;
+        }
+        table.preview-table td {
+            padding: 10px 12px;
+            border-bottom: 1px solid #f0f0f0;
+            color: #333;
+        }
+        table.preview-table tr:hover td { background: #f8f9ff; }
+
+        /* 列映射 */
+        .mapping-row {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 10px 0;
+            border-bottom: 1px solid #f0f0f0;
+        }
+        .mapping-row:last-child { border-bottom: none; }
+        .mapping-field {
+            width: 160px;
+            font-weight: 600;
+            color: #444;
+            flex-shrink: 0;
+        }
+        .mapping-field .required { color: #f5576c; }
+        .mapping-field .auto-tag {
+            display: inline-block;
+            font-size: 0.75rem;
+            background: #e8f5e9;
+            color: #2e7d32;
+            padding: 1px 8px;
+            border-radius: 8px;
+            margin-left: 6px;
+            font-weight: 500;
+        }
+        .mapping-select {
+            flex: 1;
+            padding: 8px 12px;
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+            font-size: 0.9rem;
+            outline: none;
+        }
+        .mapping-select:focus { border-color: #667eea; }
+
+        /* 导入结果 */
+        .result-summary {
+            display: flex;
+            gap: 20px;
+            padding: 20px;
+            background: #f8f9ff;
+            border-radius: 12px;
+            margin: 15px 0;
+        }
+        .result-item {
+            text-align: center;
+            flex: 1;
+        }
+        .result-item .num {
+            font-size: 1.8rem;
+            font-weight: 700;
+        }
+        .result-item .num.success { color: #2e7d32; }
+        .result-item .num.warning { color: #f57c00; }
+        .result-item .num.danger { color: #f5576c; }
+        .result-item .label {
+            font-size: 0.85rem;
+            color: #999;
+            margin-top: 4px;
+        }
+
+        .error-list {
+            max-height: 200px;
+            overflow-y: auto;
+            background: #fff5f5;
+            border-radius: 8px;
+            padding: 12px 16px;
+            margin-top: 10px;
+        }
+        .error-list .error-item {
+            padding: 4px 0;
+            color: #c62828;
+            font-size: 0.85rem;
+        }
+
+        /* 进度条 */
+        .progress-bar {
+            width: 100%;
+            height: 10px;
+            background: #f0f0f0;
+            border-radius: 5px;
+            overflow: hidden;
+            margin: 15px 0;
+        }
+        .progress-bar .fill {
+            height: 100%;
+            background: linear-gradient(90deg, #667eea, #764ba2);
+            border-radius: 5px;
+            transition: width 0.5s;
+            width: 0%;
+        }
+
+        /* 任务列表 */
+        .task-list {
+            margin-top: 15px;
+        }
+        .task-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 14px 16px;
+            border-radius: 10px;
+            background: #f8f9ff;
+            margin-bottom: 8px;
+            transition: background 0.2s;
+        }
+        .task-item:hover { background: #f0f2ff; }
+        .task-info { flex: 1; }
+        .task-info .task-meta {
+            font-size: 0.85rem;
+            color: #999;
+        }
+        .task-status {
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 0.8rem;
+            font-weight: 600;
+        }
+        .task-status.completed { background: #e8f5e9; color: #2e7d32; }
+        .task-status.processing { background: #fff3e0; color: #e65100; }
+        .task-status.failed { background: #ffebee; color: #c62828; }
+        .task-status.pending { background: #f5f5f5; color: #999; }
+
+        /* 通知 */
+        .notification {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            padding: 16px 24px;
+            border-radius: 12px;
+            color: white;
+            font-weight: 600;
+            z-index: 9999;
+            box-shadow: 0 8px 30px rgba(0,0,0,0.15);
+            transform: translateX(120%);
+            transition: transform 0.4s ease;
+            max-width: 400px;
+        }
+        .notification.show { transform: translateX(0); }
+        .notification.success { background: linear-gradient(135deg, #43e97b 0%, #38f9d7 100%); }
+        .notification.error { background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%); }
+        .notification.info { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); }
+
+        .spinner {
+            display: inline-block;
+            width: 18px;
+            height: 18px;
+            border: 2px solid rgba(255,255,255,0.3);
+            border-top-color: white;
+            border-radius: 50%;
+            animation: spin 0.6s linear infinite;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+        .text-muted { color: #999; font-size: 0.9rem; }
+
+        /* 响应式 */
+        @media (max-width: 768px) {
+            .top-nav {
+                flex-direction: column;
+                gap: 15px;
+                padding: 20px;
+            }
+            .top-nav h1 { font-size: 1.3rem; }
+            .top-nav-actions { width: 100%; flex-direction: column; }
+            .nav-btn { width: 100%; justify-content: center; }
+            .form-row { flex-direction: column; }
+            .mapping-row { flex-direction: column; align-items: flex-start; }
+            .mapping-field { width: 100%; }
+            .mapping-select { width: 100%; }
+            .result-summary { flex-direction: column; gap: 10px; }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- 顶部导航 -->
+        <div class="top-nav fade-in">
+            <h1>🔧 数据工具</h1>
+            <div class="top-nav-actions">
+                <a href="/" class="nav-btn nav-btn-home">← 返回首页</a>
+                <a href="/reports" class="nav-btn nav-btn-home">📈 财务报表</a>
+            </div>
+        </div>
+
+        <!-- Tab 栏 -->
+        <div class="tab-bar fade-in">
+            <button class="tab-btn active" onclick="switchTab('import')">📥 导入账单</button>
+            <button class="tab-btn" onclick="switchTab('export')">📤 导出账单</button>
+        </div>
+
+        <!-- ==================== 导入 Tab ==================== -->
+        <div id="tab-import" class="tab-content active">
+            <!-- 文件上传区域 -->
+            <div class="panel fade-in" id="upload-panel">
+                <div class="panel-title">📂 选择文件</div>
+                <div class="upload-zone" id="uploadZone" onclick="document.getElementById('fileInput').click()">
+                    <div class="upload-zone-icon">📄</div>
+                    <div class="upload-zone-text">点击选择文件，或拖拽文件到此处</div>
+                    <div class="upload-info">支持 CSV、Excel (.xlsx / .xls) 格式</div>
+                    <input type="file" id="fileInput" accept=".csv,.xlsx,.xls" onchange="handleFileSelect(this)">
+                </div>
+                <div id="uploadProgress" style="display:none; margin-top:15px; text-align:center;">
+                    <span class="spinner"></span> 正在解析文件...
+                </div>
+            </div>
+
+            <!-- 列映射配置 -->
+            <div class="panel fade-in" id="mapping-panel" style="display:none;">
+                <div class="panel-title">🔗 列映射配置</div>
+                <p class="text-muted" style="margin-bottom:15px;">请将文件的列对应到系统字段（带 * 为必填）</p>
+                <div id="mappingContainer"></div>
+                <div style="margin-top:18px; display:flex; align-items:center; gap:12px; flex-wrap:wrap;">
+                    <label style="display:flex; align-items:center; gap:6px; cursor:pointer;">
+                        <input type="checkbox" id="skipErrors" checked>
+                        <span style="color:#555; font-size:0.9rem;">跳过错误行（失败行不中断导入）</span>
+                    </label>
+                    <button class="btn btn-primary" id="importBtn" onclick="submitImport()">
+                        📥 确认导入
+                    </button>
+                </div>
+            </div>
+
+            <!-- 预览数据 -->
+            <div class="panel fade-in" id="preview-panel" style="display:none;">
+                <div class="panel-title">👀 数据预览 <span id="previewCount" class="text-muted"></span></div>
+                <div class="table-wrap" id="previewContainer"></div>
+            </div>
+
+            <!-- 导入结果 -->
+            <div class="panel fade-in" id="result-panel" style="display:none;">
+                <div class="panel-title">✅ 导入结果</div>
+                <div id="resultContainer"></div>
+            </div>
+        </div>
+
+        <!-- ==================== 导出 Tab ==================== -->
+        <div id="tab-export" class="tab-content">
+            <!-- 导出参数 -->
+            <div class="panel fade-in">
+                <div class="panel-title">📋 导出参数</div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>开始日期</label>
+                        <input type="date" id="exportStartDate">
+                    </div>
+                    <div class="form-group">
+                        <label>结束日期</label>
+                        <input type="date" id="exportEndDate">
+                    </div>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>账户</label>
+                        <select id="exportAccountId">
+                            <option value="">全部账户</option>
+                            {% for acct in accounts %}
+                            <option value="{{ acct.id }}">{{ acct.name }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>文件格式</label>
+                        <select id="exportFormat">
+                            <option value="xlsx">Excel (.xlsx)</option>
+                            <option value="csv">CSV (.csv)</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label>发送到邮箱（可选，数据量大时自动后台处理）</label>
+                    <input type="email" id="exportEmail" placeholder="example@email.com" style="max-width:400px;">
+                </div>
+                <button class="btn btn-primary" id="exportBtn" onclick="submitExport()">
+                    📤 开始导出
+                </button>
+                <span id="exportHint" class="text-muted" style="margin-left:12px;"></span>
+            </div>
+
+            <!-- 当前导出进度 -->
+            <div class="panel fade-in" id="exportProgressPanel" style="display:none;">
+                <div class="panel-title">⏳ 导出进度</div>
+                <div id="exportProgressInfo"></div>
+                <div class="progress-bar">
+                    <div class="fill" id="exportProgressFill"></div>
+                </div>
+                <div id="exportActions" style="margin-top:10px;"></div>
+            </div>
+
+            <!-- 最近导出 -->
+            <div class="panel fade-in">
+                <div class="panel-title">📦 最近导出</div>
+                <div id="exportTaskList">
+                    <p class="text-muted">暂无导出记录</p>
+                </div>
+                <button class="btn btn-outline btn-sm" onclick="loadExportHistory()" style="margin-top:10px;">
+                    🔄 刷新
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 通知 -->
+    <div id="notification" class="notification"></div>
+
+    <script src="/static/js/data_tools.js"></script>
+</body>
+</html>

@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="zh-cn">
+<head>
+    <meta charset="UTF-8">
+    <title>用户注册</title>
+    <link rel="stylesheet" href="/static/css/style.css">
+    <style>
+        body {background: linear-gradient(135deg,#e0ecff 0%,#f7fafd 100%) fixed;min-height: 100vh;}
+        .login-container {width:380px;margin:110px auto 0;padding:38px 36px 28px 36px;box-shadow:0 8px 32px rgba(67,134,255,0.07),0 1.5px 12px #dbe7fa;border-radius:20px;background:#fff;text-align:center;}
+        .login-logo{height:62px;margin-bottom:10px;display:flex;align-items:center;justify-content:center;}
+        .login-logo span{font-size:33px;font-weight:700;color:#409EFF;letter-spacing:3px;}
+        input[type=text], input[type=email], input[type=password] {width:96%;padding:13px;margin:13px 0 0;border-radius:8px;border:1.2px solid #c7d3e5;transition:.2s;font-size:17px;background:#f8fbff;}
+        input[type=text]:focus, input[type=email]:focus, input[type=password]:focus {outline:none;border: 1.8px solid #409EFF;background: #f4f9ff;}
+        button {background:linear-gradient(80deg,#53b8ff 0%, #409EFF 90%);color:#fff;font-size:17px;padding:10px 44px;border:none;border-radius:7px;margin-top:18px;cursor:pointer;font-weight:600;box-shadow:0 2px 8px rgba(64,158,255,.09);transition:.18s;}
+        button:hover {box-shadow:0 5px 15px #a2c8fd29;transform:translateY(-1px);background:linear-gradient(80deg,#439dff 0%, #227ada 100%);}
+        a {color:#409EFF;text-decoration:none;}
+        a:hover {text-decoration:underline;text-shadow:0 1px 4px #e7f0ff};
+        h2{margin-bottom:30px;color:#3375b9;}
+        .login-links{margin-top:23px;font-size:15px;}
+        .error-msg,.success-msg{padding:10px 0 7px;font-weight:500;font-size:15px;border-radius:6px;margin:16px 0;}
+        .error-msg{color:#e94848;background:#ffeaea;}
+        .success-msg{color:#2e9855;background:#eafcee;}
+    </style>
+    {% if redirect_login %}
+    <meta http-equiv="refresh" content="2;url=/login">
+    {% endif %}
+</head>
+<body>
+    <div class="login-container">
+        <div class="login-logo"><span>线上记账系统</span></div>
+        <h2>注册新用户</h2>
+        <form method="post" action="/register">
+            <label>用户名：<input type="text" name="username" required autofocus></label><br>
+            <label>邮箱：<input type="email" name="email" required></label><br>
+            <label>密码：<input type="password" name="password" required></label><br>
+            <label>确认密码：<input type="password" name="password2" required></label><br>
+            <button type="submit">注册</button>
+        </form>
+        {% if error %}<div class="error-msg">{{ error }}</div>{% endif %}
+        {% if success %}<div class="success-msg">{{ success }}</div>{% endif %}
+        <div class="login-links"><a href="/login">已有账号？去登录</a></div>
+    </div>
+</body>
+</html>
