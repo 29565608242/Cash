@@ -1236,3 +1236,12 @@
 [2026-05-06 23:11:38] INFO in app: 数据文件: D:\code\cash\data\data.json
 [2026-05-06 23:11:38] INFO in app: 日志级别: INFO
 [2026-05-06 23:16:13] INFO in app: 删除交易: ID=177, income ¥10.0
+[2026-05-07 09:42:48] INFO in app: 线上记账管理系统 启动成功
+[2026-05-07 09:42:48] INFO in app: 数据文件: D:\code\cash\data\data.json
+[2026-05-07 09:42:48] INFO in app: 日志级别: INFO
+[2026-05-07 09:42:51] INFO in app: 线上记账管理系统 启动成功
+[2026-05-07 09:42:51] INFO in app: 数据文件: D:\code\cash\data\data.json
+[2026-05-07 09:42:51] INFO in app: 日志级别: INFO
+[2026-05-07 09:43:32] INFO in app: 线上记账管理系统 启动成功
+[2026-05-07 09:43:32] INFO in app: 数据文件: D:\code\cash\data\data.json
+[2026-05-07 09:43:32] INFO in app: 日志级别: INFO

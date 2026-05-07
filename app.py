@@ -887,6 +887,10 @@ def admin_dashboard():
             user_stats=user_stats,
             users=user_list
         )
+    except Exception as e:
+        # 记录错误并返回错误页面
+        app.logger.error(f"Admin dashboard error: {str(e)}")
+        return render_template('error.html', error="系统错误，请稍后再试")
 
 @app.route('/create-admin', methods=['GET', 'POST'])
 def create_admin():
@@ -907,9 +911,6 @@ def create_admin():
         return render_template('create_admin.html', success='管理员创建成功！')
 
     return render_template('create_admin.html')
-    except Exception as e:
-        app.logger.error(f"加载后台页面失败: {e}")
-        abort(500, description="加载后台页面失败")
 
 
 # 报表页面
