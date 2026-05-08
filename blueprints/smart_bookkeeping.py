@@ -1,11 +1,13 @@
 """
 智能记账模块 - 解析自然语言/语音识别/图片识别结果为账单，提供智能校验和去重检测
 """
-from flask import Blueprint, request, jsonify, session, g
+from flask import Blueprint, request, jsonify, session, g, current_app
 from datetime import datetime, timedelta
+import calendar
 import re
 import json
 import logging
+import requests
 from sqlalchemy import func
 
 smart_bp = Blueprint('smart_bookkeeping', __name__, url_prefix='/api/smart')
@@ -14,8 +16,207 @@ logger = logging.getLogger(__name__)
 # ==================== 导入 app 中的模型 ====================
 def _import_models():
     """延迟导入避免循环依赖"""
-    from app import db, Transaction, Category, Account
-    return db, Transaction, Category, Account
+    from app import db, Transaction, Category, Account, AIAnalysis
+    return db, Transaction, Category, Account, AIAnalysis
+
+
+def _get_log_helper():
+    """延迟导入避免循环依赖"""
+    from cash_app.support import log_money_change as _lmc
+    return _lmc
+
+
+def _build_period_range(period, start_date=None, end_date=None):
+    """Build the date range used by reports and AI analysis."""
+    now = datetime.now()
+
+    if period == 'week':
+        start = (now - timedelta(days=7)).strftime('%Y-%m-%d')
+        end = now.strftime('%Y-%m-%d')
+    elif period == 'month':
+        start = now.strftime('%Y-%m-01')
+        end = now.strftime('%Y-%m-%d')
+    elif period == 'quarter':
+        current_quarter = (now.month - 1) // 3 + 1
+        start_month = (current_quarter - 1) * 3 + 1
+        start = f'{now.year}-{start_month:02d}-01'
+        last_day = calendar.monthrange(now.year, start_month + 2)[1]
+        end = f'{now.year}-{start_month + 2:02d}-{last_day}'
+    elif period == 'year':
+        start = f'{now.year}-01-01'
+        end = now.strftime('%Y-%m-%d')
+    elif period == 'custom':
+        start = start_date or (now - timedelta(days=30)).strftime('%Y-%m-%d')
+        end = end_date or now.strftime('%Y-%m-%d')
+    else:
+        start = now.strftime('%Y-%m-01')
+        end = now.strftime('%Y-%m-%d')
+
+    return start, end
+
+
+def _build_analysis_dataset(user_id, period, start_date=None, end_date=None):
+    """Collect report-like transaction data for AI analysis."""
+    _, Transaction, _, _, _ = _import_models()
+    from app import get_current_ledger_id
+
+    start, end = _build_period_range(period, start_date, end_date)
+    query = Transaction.query.filter(
+        Transaction.date >= start,
+        Transaction.date <= end
+    )
+
+    current_ledger_id = get_current_ledger_id()
+    is_admin = session.get('is_admin')
+    self_view = session.get('self_view', False)
+
+    if current_ledger_id:
+        query = query.filter(Transaction.ledger_id == current_ledger_id)
+    elif user_id and (not is_admin or self_view):
+        query = query.filter(Transaction.user_id == user_id)
+
+    transactions = query.order_by(Transaction.date.desc(), Transaction.id.desc()).all()
+    if not transactions:
+        return None
+
+    income = float(sum(float(t.amount or 0) for t in transactions if t.type == 'income'))
+    expense = float(sum(float(t.amount or 0) for t in transactions if t.type == 'expense'))
+    date_diff = max(1, (datetime.strptime(end, '%Y-%m-%d') - datetime.strptime(start, '%Y-%m-%d')).days + 1)
+
+    category_stats = {}
+    daily_trend = {}
+    for t in transactions:
+        key = f"{t.type}:{t.category}"
+        if key not in category_stats:
+            category_stats[key] = {'type': t.type, 'category': t.category, 'amount': 0.0, 'count': 0}
+        category_stats[key]['amount'] += float(t.amount or 0)
+        category_stats[key]['count'] += 1
+
+        if t.date not in daily_trend:
+            daily_trend[t.date] = {'income': 0.0, 'expense': 0.0, 'count': 0}
+        if t.type == 'income':
+            daily_trend[t.date]['income'] += float(t.amount or 0)
+        else:
+            daily_trend[t.date]['expense'] += float(t.amount or 0)
+        daily_trend[t.date]['count'] += 1
+
+    expense_category_stats = sorted(
+        [v for v in category_stats.values() if v['type'] == 'expense'],
+        key=lambda item: item['amount'],
+        reverse=True
+    )
+    income_category_stats = sorted(
+        [v for v in category_stats.values() if v['type'] == 'income'],
+        key=lambda item: item['amount'],
+        reverse=True
+    )
+
+    return {
+        'period': period,
+        'start_date': start,
+        'end_date': end,
+        'summary': {
+            'income': round(income, 2),
+            'expense': round(expense, 2),
+            'net': round(income - expense, 2),
+            'count': len(transactions),
+            'days': date_diff,
+            'avg_daily_income': round(income / date_diff, 2) if income else 0,
+            'avg_daily_expense': round(expense / date_diff, 2) if expense else 0,
+        },
+        'top_expense_categories': expense_category_stats[:5],
+        'top_income_categories': income_category_stats[:5],
+        'daily_trend': [
+            {
+                'date': date_key,
+                'income': round(stats['income'], 2),
+                'expense': round(stats['expense'], 2),
+                'count': stats['count'],
+            }
+            for date_key, stats in sorted(daily_trend.items())
+        ],
+        'recent_transactions': [
+            {
+                'type': t.type,
+                'amount': float(t.amount or 0),
+                'category': t.category,
+                'date': t.date,
+                'time': t.time,
+                'remark': t.remark or '',
+            }
+            for t in transactions[:20]
+        ],
+    }
+
+
+def _call_deepseek_analysis(dataset):
+    """Call DeepSeek to generate bookkeeping insights."""
+    api_key = current_app.config.get('DEEPSEEK_API_KEY')
+    if not api_key:
+        return None, '未配置 DeepSeek API Key，请先设置环境变量 DEEPSEEK_API_KEY。'
+
+    base_url = (current_app.config.get('DEEPSEEK_BASE_URL') or 'https://api.deepseek.com').rstrip('/')
+    model = current_app.config.get('DEEPSEEK_MODEL') or 'deepseek-v4-flash'
+    timeout = int(current_app.config.get('DEEPSEEK_TIMEOUT', 30))
+
+    payload = {
+        'model': model,
+        'messages': [
+            {
+                'role': 'system',
+                'content': (
+                    '你是一名专业的个人财务分析助手。'
+                    '请基于用户的记账数据，用简体中文输出实用、具体、克制的分析。'
+                    '不要编造不存在的数据。'
+                    '输出必须是纯文本，并严格包含以下四段：'
+                    '一、总体结论；二、主要消费观察；三、风险提醒；四、可执行建议。'
+                    '每段 2 到 4 条，尽量引用金额、类别和趋势。'
+                )
+            },
+            {
+                'role': 'user',
+                'content': (
+                    '请分析下面这段时间的记账数据，并给出可执行建议：\n'
+                    f'{json.dumps(dataset, ensure_ascii=False, indent=2)}'
+                )
+            },
+        ],
+        'stream': False,
+        'temperature': 0.5,
+        'max_tokens': 1200,
+    }
+
+    response = requests.post(
+        f'{base_url}/chat/completions',
+        headers={
+            'Authorization': f'Bearer {api_key}',
+            'Content-Type': 'application/json',
+        },
+        json=payload,
+        timeout=timeout,
+    )
+    response.raise_for_status()
+
+    data = response.json()
+    choices = data.get('choices') or []
+    if not choices:
+        raise ValueError('DeepSeek 未返回分析结果')
+
+    message = choices[0].get('message') or {}
+    content = (message.get('content') or '').strip()
+    if not content:
+        raise ValueError('DeepSeek 返回内容为空')
+
+    usage = data.get('usage') or {}
+    return {
+        'content': content,
+        'model': data.get('model') or model,
+        'usage': {
+            'prompt_tokens': usage.get('prompt_tokens'),
+            'completion_tokens': usage.get('completion_tokens'),
+            'total_tokens': usage.get('total_tokens'),
+        }
+    }, None
 
 
 # ==================== 中文数字解析 ====================
@@ -368,7 +569,7 @@ def check_amount_reasonableness(amount, category, tx_type):
 
 def check_duplicate(amount, category, date_str, user_id):
     """重复交易检测, 返回 (is_dup, message)"""
-    db, Transaction, _, _ = _import_models()
+    db, Transaction, _, _, _ = _import_models()
 
     # 检查相同日期、相同分类、相同金额的交易
     same_day_tx = Transaction.query.filter(
@@ -589,7 +790,7 @@ def smart_parse():
     输出: 单笔 → { parsed: {...} }; 多笔 → { parsed_list: [{...}, ...], multi: true }
     """
     try:
-        db, Transaction, Category, Account = _import_models()
+        db, Transaction, Category, Account, _ = _import_models()
         user_id = session.get('user_id')
         if not user_id:
             return jsonify({'success': False, 'message': '未登录'}), 401
@@ -660,7 +861,7 @@ def smart_confirm():
     输入: { type, amount, category, date, time, remark, account_id, currency }
     """
     try:
-        db, Transaction, Category, Account = _import_models()
+        db, Transaction, Category, Account, _ = _import_models()
         user_id = session.get('user_id')
         if not user_id:
             return jsonify({'success': False, 'message': '未登录'}), 401
@@ -772,6 +973,20 @@ def smart_confirm():
         else:
             account.balance = float(account.balance) - tx_amount
 
+        db.session.flush()
+
+        log_money_change = _get_log_helper()
+        log_money_change(
+            user_id=user_id,
+            action_type='create',
+            entity_type='transaction',
+            entity_id=tx.id,
+            amount_change=tx_amount if tx_type == 'income' else -tx_amount,
+            account_id=account_id,
+            ledger_id=current_ledger_id,
+            description=f'智能记账创建{"收入" if tx_type == "income" else "支出"} ￥{tx_amount:.2f} - {category_name}'
+        )
+
         db.session.commit()
         from app import get_balance
         balance = get_balance()
@@ -789,3 +1004,278 @@ def smart_confirm():
         db.session.rollback()
         logger.error(f'智能记账确认失败: {e}', exc_info=True)
         return jsonify({'success': False, 'message': '添加交易失败'}), 500
+
+
+@smart_bp.route('/deepseek-analysis', methods=['GET'])
+def deepseek_analysis():
+    """Use DeepSeek to analyze the current user's bookkeeping data with caching."""
+    try:
+        user_id = session.get('user_id')
+        if not user_id:
+            return jsonify({'success': False, 'message': '未登录'}), 401
+
+        period = request.args.get('period', 'month')
+        start_date = request.args.get('start_date')
+        end_date = request.args.get('end_date')
+        force_refresh = request.args.get('force_refresh', 'false').lower() == 'true'
+
+        dataset = _build_analysis_dataset(user_id, period, start_date, end_date)
+        if not dataset:
+            return jsonify({'success': False, 'message': '当前时间范围内没有可供分析的记账数据'}), 404
+
+        db, _, _, _, AIAnalysis = _import_models()
+
+        # 检查缓存：查找未删除且在当前时间范围内的最新分析
+        if not force_refresh:
+            cached_analysis = AIAnalysis.query.filter(
+                AIAnalysis.user_id == user_id,
+                AIAnalysis.period == period,
+                AIAnalysis.start_date == dataset['start_date'],
+                AIAnalysis.end_date == dataset['end_date'],
+                AIAnalysis.is_deleted == False
+            ).order_by(AIAnalysis.created_at.desc()).first()
+
+            if cached_analysis:
+                # 检查缓存是否过期（24小时内）
+                cache_age = datetime.now() - cached_analysis.created_at
+                if cache_age < timedelta(hours=24):
+                    logger.info(f'使用缓存的 AI 分析结果，用户ID: {user_id}')
+                    return jsonify({
+                        'success': True,
+                        'period': dataset['period'],
+                        'start_date': dataset['start_date'],
+                        'end_date': dataset['end_date'],
+                        'summary': dataset['summary'],
+                        'analysis': cached_analysis.analysis_content,
+                        'model': cached_analysis.model_used,
+                        'usage': {
+                            'prompt_tokens': cached_analysis.prompt_tokens,
+                            'completion_tokens': cached_analysis.completion_tokens,
+                            'total_tokens': cached_analysis.total_tokens,
+                        },
+                        'cached': True,
+                        'created_at': cached_analysis.created_at.strftime('%Y-%m-%d %H:%M:%S'),
+                        'analysis_id': cached_analysis.id,
+                    })
+
+        # 调用 DeepSeek API
+        analysis, config_error = _call_deepseek_analysis(dataset)
+        if config_error:
+            return jsonify({'success': False, 'message': config_error}), 503
+
+        # 保存分析结果到数据库
+        new_analysis = AIAnalysis(
+            user_id=user_id,
+            period=dataset['period'],
+            start_date=dataset['start_date'],
+            end_date=dataset['end_date'],
+            analysis_content=analysis['content'],
+            model_used=analysis['model'],
+            prompt_tokens=analysis['usage'].get('prompt_tokens', 0),
+            completion_tokens=analysis['usage'].get('completion_tokens', 0),
+            total_tokens=analysis['usage'].get('total_tokens', 0),
+        )
+        db.session.add(new_analysis)
+        db.session.commit()
+
+        logger.info(f'AI 分析结果已保存，用户ID: {user_id}, 分析ID: {new_analysis.id}')
+
+        return jsonify({
+            'success': True,
+            'period': dataset['period'],
+            'start_date': dataset['start_date'],
+            'end_date': dataset['end_date'],
+            'summary': dataset['summary'],
+            'analysis': analysis['content'],
+            'model': analysis['model'],
+            'usage': analysis['usage'],
+            'cached': False,
+            'analysis_id': new_analysis.id,
+        })
+    except requests.HTTPError as e:
+        logger.error(f'DeepSeek API HTTP error: {e}', exc_info=True)
+        try:
+            detail = e.response.json()
+        except Exception:
+            detail = e.response.text if e.response is not None else str(e)
+        return jsonify({
+            'success': False,
+            'message': 'DeepSeek 分析请求失败',
+            'detail': detail,
+        }), 502
+    except requests.RequestException as e:
+        logger.error(f'DeepSeek API request failed: {e}', exc_info=True)
+        return jsonify({'success': False, 'message': '无法连接到 DeepSeek 服务，请稍后重试'}), 502
+    except Exception as e:
+        logger.error(f'DeepSeek analysis failed: {e}', exc_info=True)
+        return jsonify({'success': False, 'message': 'AI 分析失败，请稍后重试'}), 500
+
+
+@smart_bp.route('/ai-analysis', methods=['GET'])
+def get_ai_analysis_history():
+    """获取用户的 AI 分析历史记录"""
+    try:
+        user_id = session.get('user_id')
+        if not user_id:
+            return jsonify({'success': False, 'message': '未登录'}), 401
+
+        db, _, _, _, AIAnalysis = _import_models()
+
+        page = request.args.get('page', 1, type=int)
+        per_page = request.args.get('per_page', 10, type=int)
+        period = request.args.get('period')
+
+        query = AIAnalysis.query.filter(
+            AIAnalysis.user_id == user_id,
+            AIAnalysis.is_deleted == False
+        )
+
+        if period:
+            query = query.filter(AIAnalysis.period == period)
+
+        pagination = query.order_by(AIAnalysis.created_at.desc()).paginate(
+            page=page, per_page=per_page, error_out=False
+        )
+
+        analyses = []
+        for analysis in pagination.items:
+            analyses.append({
+                'id': analysis.id,
+                'period': analysis.period,
+                'start_date': analysis.start_date,
+                'end_date': analysis.end_date,
+                'model': analysis.model_used,
+                'usage': {
+                    'prompt_tokens': analysis.prompt_tokens,
+                    'completion_tokens': analysis.completion_tokens,
+                    'total_tokens': analysis.total_tokens,
+                },
+                'created_at': analysis.created_at.strftime('%Y-%m-%d %H:%M:%S'),
+            })
+
+        return jsonify({
+            'success': True,
+            'analyses': analyses,
+            'pagination': {
+                'page': pagination.page,
+                'pages': pagination.pages,
+                'per_page': pagination.per_page,
+                'total': pagination.total,
+            },
+        })
+    except Exception as e:
+        logger.error(f'获取 AI 分析历史失败: {e}', exc_info=True)
+        return jsonify({'success': False, 'message': '获取历史记录失败'}), 500
+
+
+@smart_bp.route('/ai-analysis/<int:analysis_id>', methods=['GET'])
+def get_ai_analysis_detail(analysis_id):
+    """获取指定 AI 分析的详细信息"""
+    try:
+        user_id = session.get('user_id')
+        if not user_id:
+            return jsonify({'success': False, 'message': '未登录'}), 401
+
+        db, _, _, _, AIAnalysis = _import_models()
+
+        analysis = AIAnalysis.query.filter(
+            AIAnalysis.id == analysis_id,
+            AIAnalysis.user_id == user_id,
+            AIAnalysis.is_deleted == False
+        ).first()
+
+        if not analysis:
+            return jsonify({'success': False, 'message': '未找到该分析结果'}), 404
+
+        return jsonify({
+            'success': True,
+            'analysis': {
+                'id': analysis.id,
+                'period': analysis.period,
+                'start_date': analysis.start_date,
+                'end_date': analysis.end_date,
+                'content': analysis.analysis_content,
+                'model': analysis.model_used,
+                'usage': {
+                    'prompt_tokens': analysis.prompt_tokens,
+                    'completion_tokens': analysis.completion_tokens,
+                    'total_tokens': analysis.total_tokens,
+                },
+                'created_at': analysis.created_at.strftime('%Y-%m-%d %H:%M:%S'),
+            },
+        })
+    except Exception as e:
+        logger.error(f'获取 AI 分析详情失败: {e}', exc_info=True)
+        return jsonify({'success': False, 'message': '获取分析详情失败'}), 500
+
+
+@smart_bp.route('/ai-analysis/<int:analysis_id>', methods=['DELETE'])
+def delete_ai_analysis(analysis_id):
+    """删除指定的 AI 分析结果（软删除）"""
+    try:
+        user_id = session.get('user_id')
+        if not user_id:
+            return jsonify({'success': False, 'message': '未登录'}), 401
+
+        db, _, _, _, AIAnalysis = _import_models()
+
+        analysis = AIAnalysis.query.filter(
+            AIAnalysis.id == analysis_id,
+            AIAnalysis.user_id == user_id,
+            AIAnalysis.is_deleted == False
+        ).first()
+
+        if not analysis:
+            return jsonify({'success': False, 'message': '未找到该分析结果'}), 404
+
+        # 软删除
+        analysis.is_deleted = True
+        db.session.commit()
+
+        logger.info(f'AI 分析结果已删除，用户ID: {user_id}, 分析ID: {analysis_id}')
+
+        return jsonify({
+            'success': True,
+            'message': '分析结果已删除',
+        })
+    except Exception as e:
+        logger.error(f'删除 AI 分析失败: {e}', exc_info=True)
+        return jsonify({'success': False, 'message': '删除失败'}), 500
+
+
+@smart_bp.route('/ai-analysis', methods=['DELETE'])
+def delete_multiple_ai_analysis():
+    """批量删除 AI 分析结果"""
+    try:
+        user_id = session.get('user_id')
+        if not user_id:
+            return jsonify({'success': False, 'message': '未登录'}), 401
+
+        data = request.get_json()
+        if not data or 'analysis_ids' not in data:
+            return jsonify({'success': False, 'message': '请提供要删除的分析ID列表'}), 400
+
+        analysis_ids = data['analysis_ids']
+        if not isinstance(analysis_ids, list):
+            return jsonify({'success': False, 'message': 'analysis_ids 必须是数组'}), 400
+
+        db, _, _, _, AIAnalysis = _import_models()
+
+        deleted_count = AIAnalysis.query.filter(
+            AIAnalysis.id.in_(analysis_ids),
+            AIAnalysis.user_id == user_id,
+            AIAnalysis.is_deleted == False
+        ).update({'is_deleted': True})
+
+        db.session.commit()
+
+        logger.info(f'批量删除 AI 分析结果，用户ID: {user_id}, 删除数量: {deleted_count}')
+
+        return jsonify({
+            'success': True,
+            'message': f'成功删除 {deleted_count} 条分析记录',
+            'deleted_count': deleted_count,
+        })
+    except Exception as e:
+        logger.error(f'批量删除 AI 分析失败: {e}', exc_info=True)
+        return jsonify({'success': False, 'message': '删除失败'}), 500

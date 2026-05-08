@@ -230,6 +230,306 @@
             gap: 8px;
             align-items: center;
         }
+        .ai-btn {
+            background: linear-gradient(135deg, #0f766e 0%, #0ea5a4 100%);
+            color: white;
+            border: 1px solid rgba(15, 118, 110, 0.25);
+        }
+        .ai-btn:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 8px 20px rgba(14,165,164,0.18);
+        }
+        .ai-btn:disabled {
+            opacity: 0.6;
+            cursor: wait;
+            transform: none;
+            box-shadow: none;
+        }
+        .ai-panel {
+            background: linear-gradient(135deg, rgba(15,118,110,0.08) 0%, rgba(255,255,255,0.98) 45%, rgba(59,130,246,0.08) 100%);
+            border: 1px solid rgba(14,165,164,0.18);
+            border-radius: 18px;
+            padding: 24px;
+            margin-bottom: 25px;
+            box-shadow: 0 10px 30px rgba(15,23,42,0.06);
+        }
+        .ai-panel-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 16px;
+            margin-bottom: 14px;
+            flex-wrap: wrap;
+        }
+        .ai-panel-title {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+        .ai-panel-title h3 {
+            font-size: 1.1rem;
+            color: #0f172a;
+        }
+        .ai-panel-title p {
+            color: #64748b;
+            font-size: 0.9rem;
+        }
+        .ai-meta {
+            font-size: 0.8rem;
+            color: #0f766e;
+            font-weight: 600;
+        }
+        .ai-actions {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+        }
+        .history-btn {
+            padding: 6px 14px;
+            border: 1px solid rgba(14,165,164,0.3);
+            background: rgba(14,165,164,0.08);
+            color: #0f766e;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: 600;
+            font-size: 0.85rem;
+            transition: all 0.2s;
+        }
+        .history-btn:hover {
+            background: rgba(14,165,164,0.15);
+            transform: translateY(-1px);
+        }
+        .refresh-btn {
+            padding: 6px 14px;
+            border: 1px solid rgba(59,130,246,0.3);
+            background: rgba(59,130,246,0.08);
+            color: #3b82f6;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: 600;
+            font-size: 0.85rem;
+            transition: all 0.2s;
+        }
+        .refresh-btn:hover {
+            background: rgba(59,130,246,0.15);
+            transform: translateY(-1px);
+        }
+        .history-modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.5);
+            z-index: 2000;
+            justify-content: center;
+            align-items: center;
+        }
+        .history-modal.show {
+            display: flex;
+        }
+        .history-modal-content {
+            background: white;
+            border-radius: 16px;
+            padding: 24px;
+            max-width: 800px;
+            width: 90%;
+            max-height: 80vh;
+            overflow-y: auto;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.2);
+        }
+        .history-modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+        .history-modal-header h3 {
+            font-size: 1.3rem;
+            color: #0f172a;
+        }
+        .close-btn {
+            background: none;
+            border: none;
+            font-size: 1.5rem;
+            cursor: pointer;
+            color: #64748b;
+            transition: color 0.2s;
+        }
+        .close-btn:hover {
+            color: #0f172a;
+        }
+        .history-filters {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+        }
+        .history-filter-select {
+            padding: 8px 12px;
+            border: 1px solid #e0e0e0;
+            border-radius: 8px;
+            font-size: 0.9rem;
+        }
+        .history-list {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+        .history-item {
+            background: #f8fafc;
+            border: 1px solid #e2e8f0;
+            border-radius: 12px;
+            padding: 16px;
+            transition: all 0.2s;
+            cursor: pointer;
+        }
+        .history-item:hover {
+            background: #f1f5f9;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+        }
+        .history-item-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 10px;
+        }
+        .history-item-title {
+            font-weight: 600;
+            color: #0f172a;
+            font-size: 1rem;
+        }
+        .history-item-meta {
+            font-size: 0.8rem;
+            color: #64748b;
+        }
+        .history-item-actions {
+            display: flex;
+            gap: 8px;
+            align-items: center;
+        }
+        .history-item-preview {
+            color: #475569;
+            font-size: 0.9rem;
+            line-height: 1.5;
+            display: -webkit-box;
+            -webkit-line-clamp: 2;
+            -webkit-box-orient: vertical;
+            overflow: hidden;
+        }
+        .view-btn {
+            padding: 5px 10px;
+            border: none;
+            background: #4361ee;
+            color: white;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 0.8rem;
+            font-weight: 600;
+            transition: all 0.2s;
+        }
+        .view-btn:hover {
+            background: #3a56d4;
+        }
+        .delete-btn {
+            padding: 5px 10px;
+            border: none;
+            background: #ef4444;
+            color: white;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 0.8rem;
+            font-weight: 600;
+            transition: all 0.2s;
+        }
+        .delete-btn:hover {
+            background: #dc2626;
+        }
+        .batch-actions {
+            display: none;
+            background: #fef2f2;
+            border: 1px solid #fee2e2;
+            border-radius: 8px;
+            padding: 12px 16px;
+            margin-bottom: 16px;
+            align-items: center;
+            gap: 12px;
+        }
+        .batch-actions.show {
+            display: flex;
+        }
+        .select-all-checkbox {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 0.9rem;
+            color: #374151;
+        }
+        .batch-delete-btn {
+            padding: 8px 16px;
+            border: none;
+            background: #dc2626;
+            color: white;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: 600;
+            font-size: 0.9rem;
+            transition: all 0.2s;
+        }
+        .batch-delete-btn:hover {
+            background: #b91c1c;
+        }
+        .batch-cancel-btn {
+            padding: 8px 16px;
+            border: 1px solid #d1d5db;
+            background: white;
+            color: #374151;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: 600;
+            font-size: 0.9rem;
+            transition: all 0.2s;
+        }
+        .batch-cancel-btn:hover {
+            background: #f9fafb;
+        }
+        .history-checkbox {
+            width: 18px;
+            height: 18px;
+            cursor: pointer;
+            accent-color: #4361ee;
+        }
+        .history-item.selected {
+            border-color: #4361ee;
+            background: #eff6ff;
+        }
+        .pagination-info {
+            text-align: center;
+            margin-top: 20px;
+            color: #64748b;
+            font-size: 0.9rem;
+        }
+        .ai-output {
+            min-height: 150px;
+            background: rgba(255,255,255,0.8);
+            border: 1px solid rgba(148,163,184,0.2);
+            border-radius: 14px;
+            padding: 18px;
+            color: #1e293b;
+            white-space: pre-wrap;
+            line-height: 1.75;
+            font-size: 0.95rem;
+        }
+        .ai-output.loading {
+            color: #64748b;
+        }
+        .ai-output.error {
+            color: #b91c1c;
+            background: rgba(254,242,242,0.9);
+            border-color: rgba(248,113,113,0.25);
+        }
 
         /* 空状态 */
         .empty-state {
@@ -311,6 +611,7 @@
             .chart-row { grid-template-columns: 1fr; }
             .custom-date-input { flex-wrap: wrap; }
             .stat-value { font-size: 1.3rem; }
+            .ai-panel-header { align-items: flex-start; }
         }
     </style>
 </head>
@@ -343,6 +644,7 @@
                 <button onclick="loadCustom()">查询</button>
             </div>
             <div class="export-actions" style="margin-left:auto;display:flex;align-items:center;gap:12px;">
+                <button class="export-btn ai-btn" id="aiAnalyzeBtn" onclick="runDeepseekAnalysis()">DeepSeek 分析</button>
                 <span style="font-size:12px;color:#999;white-space:nowrap;">导出汇总统计 · <a href="/data" style="color:#409EFF;text-decoration:none;">明细导出→</a></span>
                 <button class="export-btn export-btn-csv" onclick="downloadReport('csv')" title="导出汇总统计、每日趋势、分类占比">📥 报表 CSV</button>
                 <button class="export-btn export-btn-xlsx" onclick="downloadReport('xlsx')" title="导出汇总统计、每日趋势、分类占比">📥 报表 XLSX</button>
@@ -384,6 +686,21 @@
         </div>
 
         <!-- 图表第一行 -->
+        <div class="ai-panel fade-in">
+            <div class="ai-panel-header">
+                <div class="ai-panel-title">
+                    <h3>DeepSeek 记账分析</h3>
+                    <p>基于当前筛选范围的收支、分类和趋势，生成消费分析与建议。</p>
+                </div>
+                <div class="ai-meta" id="aiAnalysisMeta">点击右上角按钮开始分析</div>
+                <div class="ai-actions">
+                    <button class="refresh-btn" onclick="refreshAnalysis()" title="重新分析">🔄 刷新</button>
+                    <button class="history-btn" onclick="showHistoryModal()" title="查看历史分析">📜 历史分析</button>
+                </div>
+            </div>
+            <div class="ai-output" id="aiAnalysisOutput">这里会显示 AI 对当前报表周期的分析结果。</div>
+        </div>
+
         <div class="chart-row fade-in">
             <div class="chart-card">
                 <h3>📈 收支趋势</h3>
@@ -424,6 +741,46 @@
         </div>
     </div>
 
+    <!-- 历史分析模态框 -->
+    <div class="history-modal" id="historyModal">
+        <div class="history-modal-content">
+            <div class="history-modal-header">
+                <h3>📜 AI 分析历史</h3>
+                <button class="close-btn" onclick="hideHistoryModal()">×</button>
+            </div>
+
+            <div class="history-filters">
+                <select class="history-filter-select" id="periodFilter" onchange="loadAnalysisHistory()">
+                    <option value="">所有周期</option>
+                    <option value="month">月度分析</option>
+                    <option value="week">周度分析</option>
+                    <option value="quarter">季度分析</option>
+                    <option value="year">年度分析</option>
+                </select>
+                <button class="refresh-btn" onclick="loadAnalysisHistory()">🔄 刷新</button>
+            </div>
+
+            <div class="batch-actions" id="batchActions">
+                <label class="select-all-checkbox">
+                    <input type="checkbox" id="selectAllCheckbox" onchange="toggleSelectAll()">
+                    <span id="selectedCount">已选择 0 项</span>
+                </label>
+                <button class="batch-delete-btn" onclick="batchDeleteAnalyses()">🗑️ 批量删除</button>
+                <button class="batch-cancel-btn" onclick="cancelBatchSelection()">取消选择</button>
+            </div>
+
+            <div class="history-list" id="historyList">
+                <div class="empty-state">
+                    <div class="empty-state-icon">📊</div>
+                    <h4>暂无历史分析</h4>
+                    <p>点击上方"刷新"按钮加载历史分析记录</p>
+                </div>
+            </div>
+
+            <div class="pagination-info" id="paginationInfo"></div>
+        </div>
+    </div>
+
     <script>
         let currentPeriod = 'month';
         let reportData = null;
@@ -435,6 +792,14 @@
         let txPage = 1;
         let txPerPage = 8;
         let txTotalPages = 1;
+        let aiAnalysisData = null;
+
+        // 历史分析管理相关变量
+        let analysisHistory = [];
+        let historyPage = 1;
+        let historyPerPage = 10;
+        let selectedAnalyses = new Set();
+        let isBatchMode = false;
 
         document.addEventListener('DOMContentLoaded', function() {
             loadReport('month');
@@ -450,6 +815,7 @@
                 const data = await res.json();
                 if (data.success) {
                     reportData = data;
+                    resetAiAnalysisState();
                     renderReport(data);
                 } else {
                     showNotification(data.message || '加载失败', 'error');
@@ -457,6 +823,70 @@
             } catch (e) {
                 console.error('加载报表失败:', e);
                 showNotification('加载报表失败', 'error');
+            }
+        }
+
+        function resetAiAnalysisState() {
+            aiAnalysisData = null;
+            const meta = document.getElementById('aiAnalysisMeta');
+            const output = document.getElementById('aiAnalysisOutput');
+            if (meta) meta.textContent = '点击右上角按钮开始分析';
+            if (output) {
+                output.className = 'ai-output';
+                output.textContent = '这里会显示 AI 对当前报表周期的分析结果。';
+            }
+        }
+
+        function buildAnalysisUrl() {
+            let url = `/api/smart/deepseek-analysis?period=${currentPeriod}`;
+            if (currentPeriod === 'custom') {
+                const startDate = document.getElementById('startDate').value;
+                const endDate = document.getElementById('endDate').value;
+                if (startDate && endDate) {
+                    url += `&start_date=${startDate}&end_date=${endDate}`;
+                }
+            }
+            return url;
+        }
+
+        async function runDeepseekAnalysis() {
+            const btn = document.getElementById('aiAnalyzeBtn');
+            const meta = document.getElementById('aiAnalysisMeta');
+            const output = document.getElementById('aiAnalysisOutput');
+
+            if (!reportData) {
+                showNotification('请先加载报表数据后再进行分析', 'error');
+                return;
+            }
+
+            btn.disabled = true;
+            btn.textContent = '分析中...';
+            meta.textContent = '正在调用 DeepSeek 分析当前报表';
+            output.className = 'ai-output loading';
+            output.textContent = '正在整理收支趋势、消费分类和近期流水，请稍候...';
+
+            try {
+                const res = await fetch(buildAnalysisUrl());
+                const data = await res.json();
+                if (!res.ok || !data.success) {
+                    throw new Error(data.message || 'DeepSeek 分析失败');
+                }
+
+                aiAnalysisData = data;
+                output.className = 'ai-output';
+                output.textContent = data.analysis || 'DeepSeek 未返回分析内容';
+
+                const usage = data.usage && data.usage.total_tokens ? ` · ${data.usage.total_tokens} tokens` : '';
+                meta.textContent = `${data.model || 'DeepSeek'} · ${data.start_date} ~ ${data.end_date}${usage}`;
+            } catch (error) {
+                console.error('DeepSeek analysis failed:', error);
+                output.className = 'ai-output error';
+                output.textContent = error.message || 'DeepSeek 分析失败，请稍后重试';
+                meta.textContent = '分析未完成';
+                showNotification(error.message || 'DeepSeek 分析失败', 'error');
+            } finally {
+                btn.disabled = false;
+                btn.textContent = 'DeepSeek 分析';
             }
         }
 
@@ -830,6 +1260,241 @@
             el.className = `notification ${type} show`;
             setTimeout(() => el.classList.remove('show'), 3000);
         }
+
+        // ==================== 历史分析管理功能 ====================
+
+        function refreshAnalysis() {
+            runDeepseekAnalysis();
+        }
+
+        async function showHistoryModal() {
+            document.getElementById('historyModal').classList.add('show');
+            selectedAnalyses.clear();
+            isBatchMode = false;
+            updateBatchActions();
+            await loadAnalysisHistory();
+        }
+
+        function hideHistoryModal() {
+            document.getElementById('historyModal').classList.remove('show');
+        }
+
+        async function loadAnalysisHistory() {
+            const periodFilter = document.getElementById('periodFilter').value;
+            let url = `/api/smart/ai-analysis?page=${historyPage}&per_page=${historyPerPage}`;
+            if (periodFilter) {
+                url += `&period=${periodFilter}`;
+            }
+
+            try {
+                const res = await fetch(url);
+                const data = await res.json();
+
+                if (data.success) {
+                    analysisHistory = data.analyses || [];
+                    renderHistoryList(data.pagination || {});
+                } else {
+                    showNotification(data.message || '加载历史分析失败', 'error');
+                    renderHistoryList({ page: 1, pages: 1, total: 0 });
+                }
+            } catch (e) {
+                console.error('加载历史分析失败:', e);
+                showNotification('加载历史分析失败', 'error');
+                renderHistoryList({ page: 1, pages: 1, total: 0 });
+            }
+        }
+
+        function renderHistoryList(pagination) {
+            const container = document.getElementById('historyList');
+            const paginationInfo = document.getElementById('paginationInfo');
+
+            if (!analysisHistory || analysisHistory.length === 0) {
+                container.innerHTML = `
+                    <div class="empty-state">
+                        <div class="empty-state-icon">📊</div>
+                        <h4>暂无历史分析</h4>
+                        <p>暂时没有保存的 AI 分析记录</p>
+                    </div>`;
+                paginationInfo.textContent = '';
+                return;
+            }
+
+            const periodLabels = {
+                'month': '月度分析',
+                'week': '周度分析',
+                'quarter': '季度分析',
+                'year': '年度分析'
+            };
+
+            container.innerHTML = analysisHistory.map(analysis => {
+                const isSelected = selectedAnalyses.has(analysis.id);
+                return `
+                    <div class="history-item ${isSelected ? 'selected' : ''}" data-id="${analysis.id}">
+                        <div class="history-item-header">
+                            <div>
+                                <div class="history-item-title">
+                                    ${periodLabels[analysis.period] || '周期分析'} - ${analysis.start_date} ~ ${analysis.end_date}
+                                </div>
+                                <div class="history-item-meta">
+                                    创建于 ${analysis.created_at} · ${analysis.usage?.total_tokens || 0} tokens
+                                </div>
+                            </div>
+                            <div class="history-item-actions">
+                                ${isBatchMode ? `<input type="checkbox" class="history-checkbox" ${isSelected ? 'checked' : ''} onchange="toggleAnalysisSelection(${analysis.id})">` : ''}
+                                <button class="view-btn" onclick="viewAnalysisDetail(${analysis.id})">查看详情</button>
+                                <button class="delete-btn" onclick="deleteAnalysis(${analysis.id})">删除</button>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+
+            paginationInfo.textContent = `第 ${pagination.page} 页，共 ${pagination.pages} 页，总计 ${pagination.total} 条记录`;
+        }
+
+        function toggleBatchMode() {
+            isBatchMode = !isBatchMode;
+            document.getElementById('batchActions').classList.toggle('show', isBatchMode);
+            if (!isBatchMode) {
+                selectedAnalyses.clear();
+            }
+            renderHistoryList({ page: historyPage, pages: Math.ceil(analysisHistory.length / historyPerPage), total: analysisHistory.length });
+        }
+
+        function toggleAnalysisSelection(id) {
+            if (selectedAnalyses.has(id)) {
+                selectedAnalyses.delete(id);
+            } else {
+                selectedAnalyses.add(id);
+            }
+            updateBatchActions();
+            renderHistoryList({ page: historyPage, pages: Math.ceil(analysisHistory.length / historyPerPage), total: analysisHistory.length });
+        }
+
+        function toggleSelectAll() {
+            const selectAllCheckbox = document.getElementById('selectAllCheckbox');
+            if (selectAllCheckbox.checked) {
+                analysisHistory.forEach(analysis => selectedAnalyses.add(analysis.id));
+            } else {
+                selectedAnalyses.clear();
+            }
+            updateBatchActions();
+            renderHistoryList({ page: historyPage, pages: Math.ceil(analysisHistory.length / historyPerPage), total: analysisHistory.length });
+        }
+
+        function updateBatchActions() {
+            const countElement = document.getElementById('selectedCount');
+            const selectAllCheckbox = document.getElementById('selectAllCheckbox');
+            countElement.textContent = `已选择 ${selectedAnalyses.size} 项`;
+            selectAllCheckbox.checked = selectedAnalyses.size === analysisHistory.length && analysisHistory.length > 0;
+        }
+
+        async function viewAnalysisDetail(id) {
+            try {
+                const res = await fetch(`/api/smart/ai-analysis/${id}`);
+                const data = await res.json();
+
+                if (data.success && data.analysis) {
+                    hideHistoryModal();
+                    const meta = document.getElementById('aiAnalysisMeta');
+                    const output = document.getElementById('aiAnalysisOutput');
+
+                    meta.textContent = `${data.analysis.period} - ${data.analysis.start_date} ~ ${data.analysis.end_date} · 创建于 ${data.analysis.created_at}`;
+                    output.className = 'ai-output';
+                    output.textContent = data.analysis.content;
+
+                    aiAnalysisData = {
+                        analysis_id: data.analysis.id,
+                        analysis: data.analysis.content,
+                        model: data.analysis.model,
+                        usage: data.analysis.usage,
+                        period: data.analysis.period,
+                        start_date: data.analysis.start_date,
+                        end_date: data.analysis.end_date
+                    };
+
+                    showNotification('已加载历史分析结果', 'success');
+                } else {
+                    showNotification(data.message || '加载分析详情失败', 'error');
+                }
+            } catch (e) {
+                console.error('加载分析详情失败:', e);
+                showNotification('加载分析详情失败', 'error');
+            }
+        }
+
+        async function deleteAnalysis(id) {
+            if (!confirm('确定要删除这条分析记录吗？此操作不可恢复。')) {
+                return;
+            }
+
+            try {
+                const res = await fetch(`/api/smart/ai-analysis/${id}`, {
+                    method: 'DELETE'
+                });
+                const data = await res.json();
+
+                if (data.success) {
+                    showNotification('删除成功', 'success');
+                    await loadAnalysisHistory();
+                } else {
+                    showNotification(data.message || '删除失败', 'error');
+                }
+            } catch (e) {
+                console.error('删除分析失败:', e);
+                showNotification('删除失败', 'error');
+            }
+        }
+
+        async function batchDeleteAnalyses() {
+            if (selectedAnalyses.size === 0) {
+                showNotification('请先选择要删除的分析记录', 'error');
+                return;
+            }
+
+            if (!confirm(`确定要删除选中的 ${selectedAnalyses.size} 条分析记录吗？此操作不可恢复。`)) {
+                return;
+            }
+
+            try {
+                const res = await fetch('/api/smart/ai-analysis', {
+                    method: 'DELETE',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        analysis_ids: Array.from(selectedAnalyses)
+                    })
+                });
+                const data = await res.json();
+
+                if (data.success) {
+                    showNotification(`成功删除 ${data.deleted_count} 条分析记录`, 'success');
+                    selectedAnalyses.clear();
+                    updateBatchActions();
+                    await loadAnalysisHistory();
+                } else {
+                    showNotification(data.message || '批量删除失败', 'error');
+                }
+            } catch (e) {
+                console.error('批量删除失败:', e);
+                showNotification('批量删除失败', 'error');
+            }
+        }
+
+        function cancelBatchSelection() {
+            selectedAnalyses.clear();
+            isBatchMode = false;
+            updateBatchActions();
+            renderHistoryList({ page: historyPage, pages: Math.ceil(analysisHistory.length / historyPerPage), total: analysisHistory.length });
+        }
+
+        // 点击模态框外部关闭
+        document.getElementById('historyModal').addEventListener('click', function(e) {
+            if (e.target === this) {
+                hideHistoryModal();
+            }
+        });
     </script>
 </body>
 </html>

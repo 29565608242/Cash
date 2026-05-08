@@ -20,16 +20,11 @@ from config import get_config
 
 config = get_config()
 
-# 为避免循环导入，使用 import app 而非 from app import ...
-# app 在运行时已完全加载，所有属性均可安全访问
-import app as app_module
-db = app_module.db
-Transaction = app_module.Transaction
-Category = app_module.Category
-Account = app_module.Account
-ExportTask = app_module.ExportTask
-FileUpload = app_module.FileUpload
-User = app_module.User
+
+def _import_models():
+    """延迟导入避免循环导入"""
+    import app as _app
+    return _app.db, _app.Transaction, _app.Category, _app.Account, _app.ExportTask, _app.FileUpload
 
 
 def _login_required(f):
@@ -81,6 +76,7 @@ TYPE_MAPPING = {
 @_login_required
 def data_tools_page():
     """数据工具页面（导入/导出）"""
+    from app import Account  # 避免循环导入
     accounts = Account.query.filter_by(user_id=g.user.id).all()
     return render_template('data_tools.html', accounts=accounts)
 
@@ -91,6 +87,7 @@ def data_tools_page():
 @_login_required
 def upload_import_file():
     """上传并解析导入文件"""
+    db, Transaction, Category, Account, ExportTask, FileUpload = _import_models()
     if 'file' not in request.files:
         return jsonify({'success': False, 'message': '未选择文件'}), 400
 
@@ -163,6 +160,7 @@ def upload_import_file():
 @_login_required
 def confirm_import():
     """确认导入"""
+    db, Transaction, Category, Account, ExportTask, FileUpload = _import_models()
     data = request.get_json()
     upload_id = data.get('upload_id')
     mapping = data.get('mapping', {})  # {field: column_index_or_name}
@@ -276,6 +274,16 @@ def confirm_import():
 
             # 创建交易记录
             from app import get_current_ledger_id
+            from cash_app.support import log_money_change
+            current_ledger_id = get_current_ledger_id()
+            # 获取或创建账户
+            account = Account.query.filter_by(ledger_id=current_ledger_id).first()
+            if not account:
+                account = Account.query.filter_by(user_id=g.user.id).first()
+            if not account:
+                account = Account(name='默认账户', balance=0, account_type='cash', user_id=g.user.id, ledger_id=current_ledger_id)
+                db.session.add(account)
+                db.session.flush()
             transaction = Transaction(
                 type=tx_type,
                 amount=amount,
@@ -284,12 +292,31 @@ def confirm_import():
                 time=tx_time,
                 remark=str(tx_data.get('remark', '')).strip(),
                 user_id=g.user.id,
-                ledger_id=get_current_ledger_id(),
+                ledger_id=current_ledger_id,
+                account_id=account.id,
                 currency=currency,
                 original_amount=original_amount,
                 exchange_rate=exchange_rate
             )
             db.session.add(transaction)
+            # 更新账户余额
+            if tx_type == 'income':
+                account.balance = float(account.balance) + amount
+                imp_amt = amount
+            else:
+                account.balance = float(account.balance) - amount
+                imp_amt = -amount
+            log_money_change(
+                user_id=g.user.id,
+                action_type='import',
+                entity_type='transaction',
+                amount_change=imp_amt,
+                balance_before=float(account.balance) - imp_amt,
+                balance_after=float(account.balance),
+                account_id=account.id,
+                ledger_id=current_ledger_id,
+                description=f'导入创建{"收入" if tx_type == "income" else "支出"} ￥{amount:.2f} - {category_name}'
+            )
             imported += 1
 
         except Exception as e:
@@ -338,6 +365,7 @@ def confirm_import():
 @_login_required
 def create_export():
     """创建导出任务"""
+    db, Transaction, Category, Account, ExportTask, FileUpload = _import_models()
     data = request.get_json() or {}
     start_date = data.get('start_date', '')
     end_date = data.get('end_date', '')
@@ -446,6 +474,7 @@ def create_export():
 @_login_required
 def get_export_status(task_id):
     """查询导出任务状态"""
+    db, Transaction, Category, Account, ExportTask, FileUpload = _import_models()
     task = ExportTask.query.filter_by(id=task_id, user_id=g.user.id).first()
     if not task:
         return jsonify({'success': False, 'message': '任务不存在'}), 404
@@ -473,6 +502,7 @@ def get_export_status(task_id):
 @_login_required
 def download_export(task_id):
     """下载导出文件"""
+    db, Transaction, Category, Account, ExportTask, FileUpload = _import_models()
     task = ExportTask.query.filter_by(id=task_id, user_id=g.user.id).first()
     if not task:
         return jsonify({'success': False, 'message': '任务不存在'}), 404
@@ -502,6 +532,7 @@ def download_export(task_id):
 @_login_required
 def list_exports():
     """获取用户的导出任务列表（分页）"""
+    db, Transaction, Category, Account, ExportTask, FileUpload = _import_models()
     page = request.args.get('page', 1, type=int)
     per_page = request.args.get('per_page', 8, type=int)
     per_page = min(per_page, 50)
@@ -540,6 +571,7 @@ def list_exports():
 @_login_required
 def delete_export(task_id):
     """删除导出任务记录"""
+    db, Transaction, Category, Account, ExportTask, FileUpload = _import_models()
     task = ExportTask.query.filter_by(id=task_id, user_id=g.user.id).first()
     if not task:
         return jsonify({'success': False, 'message': '任务不存在'}), 404
@@ -560,6 +592,7 @@ def delete_export(task_id):
 @_login_required
 def send_export_email():
     """通过邮件发送导出文件"""
+    db, Transaction, Category, Account, ExportTask, FileUpload = _import_models()
     data = request.get_json() or {}
     task_id = data.get('task_id')
     email_to = (data.get('email_to') or '').strip()
@@ -769,6 +802,7 @@ def _generate_xlsx(transactions, filepath):
 
 def _run_export_background(task_id, app):
     """后台线程执行导出"""
+    db, Transaction, Category, Account, ExportTask, FileUpload = _import_models()
     with app.app_context():
         task = db.session.get(ExportTask, task_id)
         if not task:
@@ -821,6 +855,7 @@ def _run_export_background(task_id, app):
 
 def _send_email(task, email_to):
     """通过 SMTP 发送导出文件"""
+    db, Transaction, Category, Account, ExportTask, FileUpload = _import_models()
     smtp_server = current_app.config.get('SMTP_SERVER', config.SMTP_SERVER)
     smtp_port = current_app.config.get('SMTP_PORT', config.SMTP_PORT)
     smtp_user = current_app.config.get('SMTP_USER', config.SMTP_USER)
@@ -932,6 +967,7 @@ def _parse_date(raw):
 
 def cleanup_old_files():
     """清理过期文件（24小时前）"""
+    db, Transaction, Category, Account, ExportTask, FileUpload = _import_models()
     cutoff = datetime.now() - timedelta(hours=24)
 
     # 清理导出文件
@@ -966,8 +1002,9 @@ def cleanup_old_files():
 
 
 # 启动时清理一次
-if db.session:
-    try:
+try:
+    db, _, _, _, _, _ = _import_models()
+    if db.session:
         cleanup_old_files()
-    except Exception:
-        pass
+except Exception:
+    pass

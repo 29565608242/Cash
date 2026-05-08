@@ -6,7 +6,6 @@ from app import app
 if __name__ == '__main__':
     # 使用8080端口启动服务，避免与其他应用冲突
     PORT = 8080
-
     try:
         app.run(
             host='0.0.0.0',

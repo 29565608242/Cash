@@ -50,6 +50,12 @@ class Config:
     SQLALCHEMY_DATABASE_URI = 'mysql+pymysql://root:123456@localhost:3306/db_test'
     SQLALCHEMY_TRACK_MODIFICATIONS = False
 
+    # DeepSeek AI settings
+    DEEPSEEK_API_KEY = os.getenv('DEEPSEEK_API_KEY', 'sk-dd0c61c806bf4858a3b68b4a3da55468')
+    DEEPSEEK_BASE_URL = os.getenv('DEEPSEEK_BASE_URL', 'https://api.deepseek.com')
+    DEEPSEEK_MODEL = os.getenv('DEEPSEEK_MODEL', 'deepseek-v4-flash')
+    DEEPSEEK_TIMEOUT = int(os.getenv('DEEPSEEK_TIMEOUT', 30))
+
     @classmethod
     def init_app(cls):
         """初始化应用配置"""
@@ -93,4 +99,3 @@ def get_config():
     """获取当前配置"""
     env = os.getenv('FLASK_ENV', 'development')
     return config.get(env, config['default'])
-

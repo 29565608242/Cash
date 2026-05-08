@@ -188,6 +188,42 @@
         .empty-state i { font-size: 3rem; margin-bottom: 12px; opacity: 0.3; }
 
         .table-wrap { overflow-x: auto; }
+        .account-tools {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+            margin-bottom: 16px;
+        }
+        .account-search {
+            flex: 1;
+            min-width: 220px;
+            padding: 10px 12px;
+            border: 2px solid #e0e0e0;
+            border-radius: 10px;
+            outline: none;
+        }
+        .account-search:focus { border-color: #667eea; }
+        .action-btn {
+            border: none;
+            border-radius: 8px;
+            padding: 6px 12px;
+            font-weight: 600;
+            cursor: pointer;
+            color: #fff;
+            font-size: 0.85rem;
+        }
+        .action-btn.reset { background: #2563eb; }
+        .action-btn.delete { background: #dc2626; }
+        .account-meta {
+            color: #666;
+            font-size: 0.82rem;
+        }
+        .status-text {
+            min-height: 24px;
+            font-size: 0.9rem;
+            color: #475569;
+            margin-bottom: 8px;
+        }
 
         /* 图表样式 */
         .chart-grid {
@@ -242,8 +278,7 @@
             <h1><i class="bi bi-shield-lock"></i> 管理后台</h1>
             <div class="top-nav-actions">
                 <span class="readonly-badge"><i class="bi bi-eye"></i> 只读模式 - 仅可查看数据</span>
-                <a href="/" class="nav-btn nav-btn-home"><i class="bi bi-house-door"></i> 返回首页</a>
-                <a href="/change-password" class="nav-btn nav-btn-home"><i class="bi bi-key"></i> 修改密码</a>
+                <a href="#userManagementPanel" class="nav-btn nav-btn-home"><i class="bi bi-people"></i> 用户管理</a>
                 <a href="/logout" class="nav-btn nav-btn-home"><i class="bi bi-box-arrow-right"></i> 退出</a>
             </div>
         </div>
@@ -276,7 +311,6 @@
                     <thead>
                         <tr>
                             <th>用户名</th>
-                            <th>是否管理员</th>
                             <th>交易笔数</th>
                             <th>总收入</th>
                             <th>总支出</th>
@@ -287,13 +321,6 @@
                         {% for u in user_stats %}
                         <tr>
                             <td><strong>{{ u.username }}</strong></td>
-                            <td>
-                                {% if u.username == 'admin' %}
-                                <span class="badge bg-warning text-dark">管理员</span>
-                                {% else %}
-                                <span class="badge bg-secondary">普通用户</span>
-                                {% endif %}
-                            </td>
                             <td>{{ u.count }}</td>
                             <td class="text-success fw-bold">¥{{ "%.2f"|format(u.income) }}</td>
                             <td class="text-danger fw-bold">¥{{ "%.2f"|format(u.expense) }}</td>
@@ -325,6 +352,28 @@
         </div>
 
         <!-- 所有交易记录 -->
+        <div class="panel fade-in" id="userManagementPanel">
+            <div class="panel-title"><i class="bi bi-person-gear"></i> 普通用户账号管理</div>
+            <div class="status-text" id="userMgmtStatus">可为普通用户重置密码，或删除未产生业务数据的空账号。</div>
+            <div class="account-tools">
+                <input id="userMgmtSearch" class="account-search" type="text" placeholder="搜索用户名或邮箱" oninput="renderUserManagementTable()">
+            </div>
+            <div class="table-wrap">
+                <table class="user-table">
+                    <thead>
+                        <tr>
+                            <th>用户名</th>
+                            <th>邮箱</th>
+                            <th>创建时间</th>
+                            <th>最近登录</th>
+                            <th>操作</th>
+                        </tr>
+                    </thead>
+                    <tbody id="userMgmtBody"></tbody>
+                </table>
+            </div>
+        </div>
+
         <div class="panel fade-in">
             <div class="panel-title"><i class="bi bi-list-ul"></i> 全平台交易记录</div>
             <div class="filter-bar">
@@ -374,8 +423,12 @@
         let allTxs = [];
         let currentPage = 1;
         const perPage = 15;
+        const allUsers = {{ users|tojson }};
 
-        document.addEventListener('DOMContentLoaded', loadTransactions);
+        document.addEventListener('DOMContentLoaded', () => {
+            renderUserManagementTable();
+            loadTransactions();
+        });
 
         async function loadTransactions() {
             try {
@@ -426,6 +479,89 @@
             document.getElementById('periodFilter').value = '';
             currentPage = 1;
             renderTable(allTxs);
+        }
+
+        function setUserMgmtStatus(message, isError = false) {
+            const el = document.getElementById('userMgmtStatus');
+            if (!el) return;
+            el.textContent = message;
+            el.style.color = isError ? '#dc2626' : '#475569';
+        }
+
+        function renderUserManagementTable() {
+            const tbody = document.getElementById('userMgmtBody');
+            if (!tbody) return;
+
+            const keyword = (document.getElementById('userMgmtSearch')?.value || '').trim().toLowerCase();
+            const users = allUsers
+                .filter(u => !u.is_admin)
+                .filter(u => !keyword || (u.username || '').toLowerCase().includes(keyword) || (u.email || '').toLowerCase().includes(keyword));
+
+            if (!users.length) {
+                tbody.innerHTML = '<tr><td colspan="5" class="text-center py-4 text-muted">没有匹配的普通用户</td></tr>';
+                return;
+            }
+
+            tbody.innerHTML = users.map(u => `
+                <tr>
+                    <td><strong>${escapeHtml(u.username || '-')}</strong></td>
+                    <td>${escapeHtml(u.email || '-')}</td>
+                    <td class="account-meta">${escapeHtml(u.created_at || '-')}</td>
+                    <td class="account-meta">${escapeHtml(u.last_login || '从未登录')}</td>
+                    <td>
+                        <button class="action-btn reset" onclick="resetUserPassword(${u.id}, '${escapeJs(u.username || '')}')">重置密码</button>
+                        <button class="action-btn delete" onclick="deleteUser(${u.id}, '${escapeJs(u.username || '')}')">删除账号</button>
+                    </td>
+                </tr>
+            `).join('');
+        }
+
+        async function resetUserPassword(userId, username) {
+            const newPassword = window.prompt(`请输入 ${username} 的新密码（至少 6 位）`);
+            if (!newPassword) return;
+
+            try {
+                const res = await fetch(`/api/admin/users/${userId}/reset-password`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ new_password: newPassword })
+                });
+                const data = await res.json();
+                setUserMgmtStatus(data.message || (data.success ? '密码已重置' : '密码重置失败'), !data.success);
+            } catch (error) {
+                setUserMgmtStatus('密码重置失败，请稍后重试', true);
+            }
+        }
+
+        async function deleteUser(userId, username) {
+            const confirmed = window.confirm(`确定要删除用户 ${username} 吗？仅允许删除没有业务数据的普通用户。`);
+            if (!confirmed) return;
+
+            try {
+                const res = await fetch(`/api/admin/users/${userId}`, { method: 'DELETE' });
+                const data = await res.json();
+                setUserMgmtStatus(data.message || (data.success ? '用户已删除' : '删除失败'), !data.success);
+                if (data.success) {
+                    const index = allUsers.findIndex(u => u.id === userId);
+                    if (index >= 0) allUsers.splice(index, 1);
+                    renderUserManagementTable();
+                }
+            } catch (error) {
+                setUserMgmtStatus('删除失败，请稍后重试', true);
+            }
+        }
+
+        function escapeHtml(value) {
+            return String(value)
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#39;');
+        }
+
+        function escapeJs(value) {
+            return String(value).replace(/\\/g, '\\\\').replace(/'/g, "\\'");
         }
 
         function renderTable(transactions) {

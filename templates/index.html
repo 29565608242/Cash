@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="zh-CN">
 
 <head>
@@ -2199,6 +2199,9 @@
                 <h3 id="modalTitle">💰 快速记账</h3>
                 <button class="modal-close" onclick="closeModal()">×</button>
             </div>
+            <div id="quickAddLedgerInfo" style="padding:0 24px 8px;font-size:0.85rem;color:#888;display:flex;align-items:center;gap:6px;">
+                📒 账本：<span id="quickAddLedgerName">加载中...</span>
+            </div>
             <form id="quickAddForm" novalidate>
                 <input type="hidden" id="quickType" value="income">
                 <div class="form-grid">
@@ -2247,6 +2250,20 @@
                     <label for="quickRemark">📝 备注（可选）</label>
                     <input type="text" id="quickRemark" placeholder="添加备注...">
                 </div>
+                <div class="form-grid" id="sharingSection" style="display:none;">
+                    <div class="form-group">
+                        <label for="quickPayerUser">👤 付款人</label>
+                        <select id="quickPayerUser" class="filter-select">
+                            <option value="">默认当前用户</option>
+                        </select>
+                    </div>
+                    <div class="form-group" style="grid-column:1 / -1;">
+                        <label>👥 成员分摊</label>
+                        <div id="splitMembersContainer" style="display:flex;flex-direction:column;gap:10px;"></div>
+                        <small id="splitAmountHint"
+                            style="color:#888;font-size:0.8rem;display:block;margin-top:6px;"></small>
+                    </div>
+                </div>
                 <div class="form-group" id="reimbMarkGroup" style="display:none;">
                     <label style="display:flex;align-items:center;gap:8px;cursor:pointer;">
                         <input type="checkbox" id="quickReimbursable" style="width:18px;height:18px;cursor:pointer;">
@@ -2269,17 +2286,17 @@
     <div class="modal" id="accountModal">
         <div class="modal-content">
             <div class="modal-header">
-                <h3 id="accountModalTitle">🏦 新建账本</h3>
+                <h3 id="accountModalTitle">🏦 新建账户</h3>
                 <button class="modal-close" onclick="closeAccountModal()">×</button>
             </div>
             <form id="accountForm" novalidate>
                 <input type="hidden" id="editAccountId" value="">
                 <div class="form-group">
-                    <label for="accountName">📛 账本名称 <span style="color:red">*</span></label>
+                    <label for="accountName">📛 账户名称 <span style="color:red">*</span></label>
                     <input type="text" id="accountName" placeholder="如：现金、银行卡、微信钱包" required>
                 </div>
                 <div class="form-group">
-                    <label for="accountType">🏷️ 账本类型</label>
+                    <label for="accountType">🏷️ 账户类型</label>
                     <select id="accountType" class="filter-select">
                         <option value="cash">现金</option>
                         <option value="bank">银行卡</option>
@@ -2546,7 +2563,13 @@
             </div>
             <div class="ledger-selector">
                 <select id="ledgerSelect" onchange="onLedgerChange()">
-                    <option value="">加载账本...</option>
+                    {% if ledgers %}
+                        {% for ledger in ledgers %}
+                        <option value="{{ ledger.id }}" {% if active_ledger_id == ledger.id %}selected{% endif %}>{{ ledger.name }}</option>
+                        {% endfor %}
+                    {% else %}
+                    <option value="">选择账本</option>
+                    {% endif %}
                 </select>
                 <div class="ledger-selector-actions">
                     <button onclick="openManageLedgersModal()">⚙️ 管理账本</button>
@@ -2565,6 +2588,10 @@
                 <button class="sidebar-nav-item" onclick="location.href='/data'">
                     <span>🔧</span>
                     <span>数据工具</span>
+                </button>
+                <button class="sidebar-nav-item" onclick="showMoneyFlow()">
+                    <span>📋</span>
+                    <span>资金流动</span>
                 </button>
                 <button class="sidebar-nav-item" onclick="location.href='/user-profile'">
                     <span>👤</span>
@@ -2737,10 +2764,10 @@
                     <div class="today-summary-header">
                         <div class="today-summary-title">
                             <span>🏦</span>
-                            <span>我的账本</span>
+                            <span>我的账户</span>
                         </div>
                         <button class="period-tab active" onclick="openAddAccount()">
-                            ＋ 新建账本
+                            ＋ 新建账户
                         </button>
                     </div>
                     <div class="accounts-grid" id="accountsGrid">
@@ -2765,59 +2792,43 @@
                     <div class="chart-container" id="trendChart"></div>
                 </div>
 
-                <!-- 最近交易 -->
-                <div class="content-card fade-in">
-                    <h3>📋 交易记录</h3>
-
-                    <!-- 搜索筛选栏 -->
+                <!-- 资金流动（统一视图） -->
+                <div id="moneyFlowSection" class="content-card fade-in">
+                    <h3>📋 资金流动</h3>
+                    <p style="color:#999;font-size:0.85rem;margin:-5px 0 12px 0;">展示所有资金变动记录，包括交易、借贷、账户调整等</p>
                     <div class="filter-bar" style="margin-bottom:15px;gap:8px;">
-                        <input type="text" id="searchKeyword" placeholder="🔍 关键词搜索..."
-                            style="flex:2;min-width:150px;padding:8px 14px;border:2px solid #e0e0e0;border-radius:10px;font-size:0.85rem;font-family:inherit;outline:none;transition:border-color 0.2s;"
+                        <input type="text" id="flowKeyword" placeholder="🔍 关键词搜索..."
+                            style="flex:2;min-width:130px;padding:8px 14px;border:2px solid #e0e0e0;border-radius:10px;font-size:0.85rem;font-family:inherit;outline:none;transition:border-color 0.2s;"
                             onfocus="this.style.borderColor='#667eea'" onblur="this.style.borderColor='#e0e0e0'"
-                            onkeydown="if(event.key==='Enter')applySearchFilter()">
-                        <select id="searchCategory" class="filter-select" style="flex:1;min-width:100px;">
-                            <option value="">全部分类</option>
-                        </select>
-                        <select id="searchType" class="filter-select" style="flex:1;min-width:90px;">
+                            onkeydown="if(event.key==='Enter')loadMoneyFlow()">
+                        <select id="flowEntityType" class="filter-select" style="flex:1;min-width:90px;">
                             <option value="">全部类型</option>
-                            <option value="income">收入</option>
-                            <option value="expense">支出</option>
+                            <option value="transaction">交易</option>
+                            <option value="loan">借贷</option>
+                            <option value="account">账户调整</option>
                         </select>
-                        <select id="searchAccount" onchange="onSearchAccountChange()" class="filter-select"
-                            style="flex:1;min-width:110px;">
-                            <option value="">全部账户</option>
+                        <select id="flowActionType" class="filter-select" style="flex:1;min-width:90px;">
+                            <option value="">全部操作</option>
+                            <option value="create">新增</option>
+                            <option value="update">修改</option>
+                            <option value="delete">删除</option>
+                            <option value="adjust">调整余额</option>
+                            <option value="repay">借贷还款</option>
+                            <option value="import">导入</option>
                         </select>
-                        <input type="date" id="searchDateFrom" placeholder="开始日期"
-                            style="flex:1;min-width:130px;padding:8px 14px;border:2px solid #e0e0e0;border-radius:10px;font-size:0.85rem;font-family:inherit;outline:none;"
-                            onfocus="this.style.borderColor='#667eea'" onblur="this.style.borderColor='#e0e0e0'">
+                        <input type="date" id="flowDateStart" style="flex:1;min-width:120px;padding:8px 14px;border:2px solid #e0e0e0;border-radius:10px;font-size:0.85rem;font-family:inherit;outline:none;" onfocus="this.style.borderColor='#667eea'" onblur="this.style.borderColor='#e0e0e0'">
                         <span style="color:#999;font-size:0.85rem;">~</span>
-                        <input type="date" id="searchDateTo" placeholder="结束日期"
-                            style="flex:1;min-width:130px;padding:8px 14px;border:2px solid #e0e0e0;border-radius:10px;font-size:0.85rem;font-family:inherit;outline:none;"
-                            onfocus="this.style.borderColor='#667eea'" onblur="this.style.borderColor='#e0e0e0'">
-                        <input type="number" id="searchAmountMin" placeholder="最低金额" min="0" step="0.01"
-                            style="flex:1;min-width:100px;padding:8px 14px;border:2px solid #e0e0e0;border-radius:10px;font-size:0.85rem;font-family:inherit;outline:none;"
-                            onfocus="this.style.borderColor='#667eea'" onblur="this.style.borderColor='#e0e0e0'">
-                        <span style="color:#999;font-size:0.85rem;">~</span>
-                        <input type="number" id="searchAmountMax" placeholder="最高金额" min="0" step="0.01"
-                            style="flex:1;min-width:100px;padding:8px 14px;border:2px solid #e0e0e0;border-radius:10px;font-size:0.85rem;font-family:inherit;outline:none;"
-                            onfocus="this.style.borderColor='#667eea'" onblur="this.style.borderColor='#e0e0e0'">
-                        <button onclick="applySearchFilter()"
-                            style="padding:8px 18px;background:linear-gradient(135deg,#667eea,#764ba2);color:white;border:none;border-radius:10px;cursor:pointer;font-weight:600;font-size:0.85rem;white-space:nowrap;transition:all 0.2s;"
-                            onmouseover="this.style.opacity='0.9'" onmouseout="this.style.opacity='1'">搜索</button>
-                        <button onclick="resetSearchFilter()"
-                            style="padding:8px 14px;background:#f0f0f0;color:#666;border:none;border-radius:10px;cursor:pointer;font-weight:500;font-size:0.85rem;white-space:nowrap;transition:all 0.2s;"
-                            onmouseover="this.style.backgroundColor='#e0e0e0'"
-                            onmouseout="this.style.backgroundColor='#f0f0f0'">重置</button>
+                        <input type="date" id="flowDateEnd" style="flex:1;min-width:120px;padding:8px 14px;border:2px solid #e0e0e0;border-radius:10px;font-size:0.85rem;font-family:inherit;outline:none;" onfocus="this.style.borderColor='#667eea'" onblur="this.style.borderColor='#e0e0e0'">
+                        <button onclick="loadMoneyFlow()" style="padding:8px 18px;background:linear-gradient(135deg,#667eea,#764ba2);color:white;border:none;border-radius:10px;cursor:pointer;font-weight:600;font-size:0.85rem;white-space:nowrap;transition:all 0.2s;" onmouseover="this.style.opacity='0.9'" onmouseout="this.style.opacity='1'">查询</button>
                     </div>
-
-                    <div class="recent-transactions" id="recentTransactions">
+                    <div id="moneyFlowList">
                         <div class="empty-state">
-                            <div class="empty-state-icon">📝</div>
-                            <h4>暂无交易记录</h4>
-                            <p>{{ '您处于只读模式，无法记账' if is_admin and not self_view else '点击上方快速记账开始使用' }}</p>
+                            <div class="empty-state-icon">📋</div>
+                            <h4>暂无记录</h4>
+                            <p>进行记账、借贷等操作后将显示在此处</p>
                         </div>
                     </div>
-                    <div id="paginationControls"></div>
+                    <div id="flowPaginationControls"></div>
                 </div>
             </div>
         </div>
@@ -3200,6 +3211,7 @@
             let is_admin = {{ is_admin| tojson }};
             let can_edit = !is_admin || {{ self_view| tojson }};
             window.activeUserId = {{ session.get('user_id', 0) | tojson }};
+            window.activeLedgerId = {{ active_ledger_id | tojson }};
 
             // 分页状态
             let currentPage = 1;
@@ -3212,11 +3224,13 @@
             // 数据缓存
             let categoryCache = { income: [], expense: [] };
             let accountCache = [];
+            let ledgerMemberCache = [];
             let budgetAccountId = null;  // 预算概览账户筛选，null=总账户
 
             // 初始化
             document.addEventListener('DOMContentLoaded', function () {
                 updateDateTime();
+                loadLedgers(); // 加载账本列表
                 loadData();
                 loadAccounts().then(() => {
                     populateBudgetAccountFilter();
@@ -3252,74 +3266,96 @@
 
                     if (data.success) {
                         allTransactions = data.transactions || [];
-                        currentPage = 1;
                         updateDashboard();
                         updateChart();
-                        applySearchFilter();
                     }
                 } catch (error) {
                     console.error('加载数据失败:', error);
                     showNotification('加载数据失败', 'error');
                 }
+                loadMoneyFlow(1);
             }
 
-            // 应用搜索筛选
-            function applySearchFilter() {
-                currentPage = 1;
-                const keyword = (document.getElementById('searchKeyword').value || '').trim().toLowerCase();
-                const category = document.getElementById('searchCategory').value;
-                const type = document.getElementById('searchType').value;
-                const accountId = document.getElementById('searchAccount').value;
-                const dateFrom = document.getElementById('searchDateFrom').value;
-                const dateTo = document.getElementById('searchDateTo').value;
-                const amountMin = document.getElementById('searchAmountMin').value;
-                const amountMax = document.getElementById('searchAmountMax').value;
+            // 加载账本列表
+            async function loadLedgers() {
+                try {
+                    const response = await fetch('/api/ledgers');
+                    const data = await response.json();
 
-                filteredTransactions = allTransactions.filter(t => {
-                    // 关键词：搜索备注和分类
-                    if (keyword) {
-                        const remark = (t.remark || '').toLowerCase();
-                        const cat = (t.category || '').toLowerCase();
-                        if (!remark.includes(keyword) && !cat.includes(keyword)) return false;
+                    if (data.success) {
+                        const ledgerSelect = document.getElementById('ledgerSelect');
+                        const ledgers = data.ledgers || [];
+
+                        // 保留已有 option 映射，合并 API 返回的数据
+                        const existingMap = {};
+                        for (const opt of ledgerSelect.options) {
+                            existingMap[opt.value] = opt.textContent;
+                        }
+
+                        // 重建 option 列表，保留 "个人模式" 选项
+                        ledgerSelect.innerHTML = '<option value="">个人模式</option>';
+                        ledgers.forEach(ledger => {
+                            const option = document.createElement('option');
+                            option.value = ledger.id;
+                            option.textContent = `${ledger.name} (${ledger.currency || 'CNY'})`;
+                            ledgerSelect.appendChild(option);
+                        });
+
+                        // 自动选中当前活动账本
+                        if (window.activeLedgerId && ledgerSelect.querySelector(`option[value="${window.activeLedgerId}"]`)) {
+                            ledgerSelect.value = window.activeLedgerId;
+                            // 切换账本模式，加载账本成员
+                            loadCurrentLedgerMembers();
+                        } else if (window.activeLedgerId === null && ledgers.length > 0) {
+                            // 没有活动账本时默认选中第一个
+                            ledgerSelect.value = ledgers[0].id;
+                            onLedgerChange();
+                        }
                     }
-                    // 分类
-                    if (category && t.category !== category) return false;
-                    // 类型
-                    if (type && t.type !== type) return false;
-                    // 账户
-                    if (accountId && t.account_id !== parseInt(accountId)) return false;
-                    // 日期起
-                    if (dateFrom && t.date < dateFrom) return false;
-                    // 日期止
-                    if (dateTo && t.date > dateTo) return false;
-                    // 最低金额
-                    if (amountMin !== '' && t.amount < parseFloat(amountMin)) return false;
-                    // 最高金额
-                    if (amountMax !== '' && t.amount > parseFloat(amountMax)) return false;
-                    return true;
-                });
-
-                totalPages = Math.max(1, Math.ceil(filteredTransactions.length / perPage));
-                if (currentPage > totalPages) currentPage = totalPages;
-                updateRecentTransactions();
+                } catch (error) {
+                    console.error('加载账本失败:', error);
+                }
             }
 
-            // 重置搜索筛选
-            function resetSearchFilter() {
-                document.getElementById('searchKeyword').value = '';
-                document.getElementById('searchCategory').value = '';
-                document.getElementById('searchType').value = '';
-                document.getElementById('searchAccount').value = '';
-                document.getElementById('searchDateFrom').value = '';
-                document.getElementById('searchDateTo').value = '';
-                document.getElementById('searchAmountMin').value = '';
-                document.getElementById('searchAmountMax').value = '';
-                applySearchFilter();
-            }
+            // 账本选择变更
+            async function onLedgerChange() {
+                const ledgerId = document.getElementById('ledgerSelect').value;
+                if (ledgerId) {
+                    try {
+                        // 调用后端API切换账本
+                        const response = await fetch(`/api/ledgers/${ledgerId}/switch`, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' }
+                        });
+                        const data = await response.json();
 
-            // 搜索账户筛选变更
-            function onSearchAccountChange() {
-                applySearchFilter();
+                        if (data.success) {
+                            // 切换到账本模式，加载账本成员
+                            await loadCurrentLedgerMembers();
+                            showNotification(`已切换到账本 (权限: ${data.role})`, 'success');
+                        } else {
+                            showNotification(data.message || '切换账本失败', 'error');
+                            // 恢复选择
+                            document.getElementById('ledgerSelect').value = '';
+                            return;
+                        }
+                    } catch (error) {
+                        console.error('切换账本失败:', error);
+                        showNotification('切换账本失败', 'error');
+                        // 恢复选择
+                        document.getElementById('ledgerSelect').value = '';
+                        return;
+                    }
+                } else {
+                    // 切换到个人模式
+                    ledgerMemberCache = [{
+                        user_id: window.activeUserId,
+                        username: "{{ username }}"
+                    }];
+                    showNotification('已切换到个人模式', 'info');
+                }
+                // 重新加载数据
+                loadData();
             }
 
             // 更新用户信息
@@ -3499,118 +3535,6 @@
                 window.addEventListener('resize', () => myChart.resize());
             }
 
-            // 更新最近交易
-            function updateRecentTransactions() {
-                const container = document.getElementById('recentTransactions');
-
-                if (filteredTransactions.length === 0) {
-                    container.innerHTML = `
-                    <div class="empty-state">
-                        <div class="empty-state-icon">📝</div>
-                        <h4>暂无交易记录</h4>
-                        <p>点击上方快速记账开始使用</p>
-                    </div>
-                `;
-                    document.getElementById('paginationControls').innerHTML = '';
-                    return;
-                }
-
-                const start = (currentPage - 1) * perPage;
-                const end = start + perPage;
-                const pageData = filteredTransactions.slice(start, end);
-
-                container.innerHTML = pageData.map(t => {
-                    const reimbBadge = t.reimbursement_status && t.reimbursement_status !== 'none'
-                        ? `<span class="reimbursement-badge reimbursement-badge-${t.reimbursement_status}">${t.reimbursement_status === 'pending' ? '待报销' : t.reimbursement_status === 'partial' ? '部分报销' : '已报销'
-                        }</span>` : '';
-                    const reimbActions = t.type === 'expense' ? `
-                    ${can_edit ? `<div style="display:flex;gap:4px;margin-top:6px;flex-wrap:wrap;align-items:center;">
-                        ${t.reimbursement_status === 'none' ? `
-                            <button class="reimbursement-btn reimbursement-btn-mark" onclick="event.stopPropagation();markReimbursable(${t.id})">标记报销</button>
-                        ` : `
-                            <span style="font-size:0.8rem;color:#666;margin-right:2px;">${t.reimbursed_amount > 0 ? `已报销 ¥${t.reimbursed_amount.toFixed(2)} / ¥${t.amount.toFixed(2)}` : ''}</span>
-                            <select class="reimbursement-status-select" onchange="event.stopPropagation();updateReimbStatus(${t.id}, this.value)" style="padding:4px 24px 4px 8px;border:1.5px solid #d0d0d0;border-radius:6px;font-size:0.8rem;background:white;cursor:pointer;outline:none;">
-                                <option value="pending" ${t.reimbursement_status === 'pending' ? 'selected' : ''}>待报销</option>
-                                <option value="reimbursed" ${t.reimbursement_status === 'reimbursed' ? 'selected' : ''}>已报销</option>
-                                <option value="none">取消报销</option>
-                            </select>
-                            ${t.reimbursement_status === 'pending' || t.reimbursement_status === 'partial' ? `
-                                <button class="reimbursement-btn reimbursement-btn-writeoff" onclick="event.stopPropagation();openWriteOffModal(${t.id})">核销</button>
-                            ` : ''}
-                        `}
-                    </div>` : ''}
-                ` : '';
-                    return `
-                <div class="transaction-item">
-                    <div class="transaction-left">
-                        <div class="transaction-icon ${t.type === 'income' ? 'transaction-income-icon' : 'transaction-expense-icon'}">
-                            ${t.type === 'income' ? '💰' : '💸'}
-                        </div>
-                        <div class="transaction-info">
-                            <h4>${t.category || '未分类'}${reimbBadge}</h4>
-                            <p>${t.date} ${t.account_name ? '· ' + t.account_name : ''} ${t.remark ? '· ' + t.remark : ''}</p>
-                            ${t.username ? `<p style="font-size:0.8rem;color:#999;">👤 ${t.username}</p>` : ''}
-                            ${reimbActions}
-                        </div>
-                    </div>
-                    <div class="transaction-amount ${t.type === 'income' ? 'transaction-income' : 'transaction-expense'}">
-                    ${t.currency && t.currency !== 'CNY' && t.original_amount
-                            ? `${CURRENCY_SYMBOLS[t.currency] || t.currency}${t.original_amount.toFixed(2)}<br><span style="font-size:0.75rem;color:#999;">¥${t.amount.toFixed(2)}</span>`
-                            : `${t.type === 'income' ? '+' : '-'}¥${t.amount.toFixed(2)}`}
-                    </div>
-                    ${can_edit ? `<button class="transaction-delete-btn" onclick="event.stopPropagation();deleteTransaction(${t.id})">🗑️ 删除</button>` : ''}
-                </div>
-            `}).join('');
-
-                renderPagination();
-            }
-
-            // 渲染分页控件
-            function renderPagination() {
-                const container = document.getElementById('paginationControls');
-                if (totalPages <= 1) {
-                    container.innerHTML = '';
-                    return;
-                }
-
-                let html = '<div class="pagination">';
-
-                // 上一页
-                html += `<button class="page-btn" onclick="goToPage(${currentPage - 1})" ${currentPage <= 1 ? 'disabled' : ''}>‹ 上一页</button>`;
-
-                // 页码
-                let startPage = Math.max(1, currentPage - 2);
-                let endPage = Math.min(totalPages, currentPage + 2);
-
-                if (startPage > 1) {
-                    html += `<button class="page-btn" onclick="goToPage(1)">1</button>`;
-                    if (startPage > 2) html += `<span class="page-ellipsis">...</span>`;
-                }
-
-                for (let i = startPage; i <= endPage; i++) {
-                    html += `<button class="page-btn ${i === currentPage ? 'page-btn-active' : ''}" onclick="goToPage(${i})">${i}</button>`;
-                }
-
-                if (endPage < totalPages) {
-                    if (endPage < totalPages - 1) html += `<span class="page-ellipsis">...</span>`;
-                    html += `<button class="page-btn" onclick="goToPage(${totalPages})">${totalPages}</button>`;
-                }
-
-                // 下一页
-                html += `<button class="page-btn" onclick="goToPage(${currentPage + 1})" ${currentPage >= totalPages ? 'disabled' : ''}>下一页 ›</button>`;
-
-                html += '</div>';
-                container.innerHTML = html;
-            }
-
-            // 跳转到指定页
-            function goToPage(page) {
-                if (page < 1 || page > totalPages) return;
-                currentPage = page;
-                updateRecentTransactions();
-                document.getElementById('recentTransactions').scrollIntoView({ behavior: 'smooth', block: 'start' });
-            }
-
             // 删除交易记录
             async function deleteTransaction(id) {
                 if (!confirm('确定要删除这条记录吗？')) return;
@@ -3621,6 +3545,7 @@
                         showNotification('删除成功', 'success');
                         loadData();
                         loadAccounts();
+                        loadMoneyFlow(1);
                     } else {
                         showNotification(data.message || '删除失败', 'error');
                     }
@@ -3637,24 +3562,10 @@
                     if (data.success) {
                         categoryCache.income = data.categories.filter(c => c.type === 'income');
                         categoryCache.expense = data.categories.filter(c => c.type === 'expense');
-                        // 填充搜索分类下拉
-                        populateSearchCategory();
                     }
                 } catch (e) {
                     console.error('加载分类失败:', e);
                 }
-            }
-
-            // 填充搜索分类下拉
-            function populateSearchCategory() {
-                const sel = document.getElementById('searchCategory');
-                if (!sel) return;
-                sel.innerHTML = '<option value="">全部分类</option>';
-                const allCats = new Set();
-                [...categoryCache.income, ...categoryCache.expense].forEach(c => allCats.add(c.name));
-                allCats.forEach(name => {
-                    sel.innerHTML += `<option value="${name}">${name}</option>`;
-                });
             }
 
             // 加载账户（从 API）
@@ -3737,14 +3648,11 @@
             function populateAccountFilter() {
                 const sel = document.getElementById('accountFilter');
                 const chartSel = document.getElementById('chartAccountFilter');
-                const searchAccSel = document.getElementById('searchAccount');
                 sel.innerHTML = '<option value="">全部账户</option>';
                 chartSel.innerHTML = '<option value="">全部账户</option>';
-                searchAccSel.innerHTML = '<option value="">全部账户</option>';
                 accountCache.forEach(a => {
                     sel.innerHTML += `<option value="${a.id}">${a.name}</option>`;
                     chartSel.innerHTML += `<option value="${a.id}">${a.name}</option>`;
-                    searchAccSel.innerHTML += `<option value="${a.id}">${a.name}</option>`;
                 });
             }
 
@@ -3766,7 +3674,7 @@
             // 打开新建账户模态框
             function openAddAccount() {
                 document.getElementById('editAccountId').value = '';
-                document.getElementById('accountModalTitle').textContent = '🏦 新建账本';
+                document.getElementById('accountModalTitle').textContent = '🏦 新建账户';
                 document.getElementById('accountForm').reset();
                 document.getElementById('accountBalance').value = '0';
                 document.getElementById('accountSubmitBtn').textContent = '确认创建';
@@ -3878,6 +3786,16 @@
                 document.getElementById('quickType').value = type;
                 document.getElementById('modalTitle').textContent = type === 'income' ? '💰 快速记收入' : '💸 快速记支出';
 
+                // 更新账本提示
+                const ledgerSelect = document.getElementById('ledgerSelect');
+                const ledgerInfo = document.getElementById('quickAddLedgerName');
+                if (ledgerSelect && ledgerSelect.value) {
+                    const selectedOpt = ledgerSelect.options[ledgerSelect.selectedIndex];
+                    ledgerInfo.textContent = selectedOpt ? selectedOpt.textContent : '已选择';
+                } else {
+                    ledgerInfo.textContent = '个人模式（不归入账本）';
+                }
+
                 // 重置表单和错误
                 document.getElementById('quickAddForm').reset();
                 clearErrors();
@@ -3927,6 +3845,10 @@
                     updateCurrencyHint(this.value);
                 };
 
+                await loadCurrentLedgerMembers();
+                renderSplitMembers();
+                document.getElementById('quickAmount').oninput = updateSplitAmountHint;
+
                 document.getElementById('quickAddModal').classList.add('show');
                 setTimeout(() => document.getElementById('quickAmount').focus(), 100);
             }
@@ -3944,6 +3866,111 @@
             function updateCurrencyHint(currency) {
                 const hint = document.getElementById('currencyHint');
                 hint.textContent = CURRENCY_HINTS[currency] || '';
+            }
+
+            async function loadCurrentLedgerMembers() {
+                const ledgerSelect = document.getElementById('ledgerSelect');
+                const ledgerId = ledgerSelect ? ledgerSelect.value : '';
+
+                if (!ledgerId) {
+                    ledgerMemberCache = [{
+                        user_id: window.activeUserId,
+                        username: "{{ username }}"
+                    }];
+                    return ledgerMemberCache;
+                }
+
+                try {
+                    const res = await fetch(`/api/ledgers/${ledgerId}/members`);
+                    const data = await res.json();
+                    if (!data.success) {
+                        ledgerMemberCache = [];
+                        return ledgerMemberCache;
+                    }
+
+                    const members = [];
+                    if (data.owner) {
+                        members.push({ user_id: data.owner.user_id, username: data.owner.username });
+                    }
+                    (data.members || []).forEach(member => {
+                        if (!members.some(item => item.user_id === member.user_id)) {
+                            members.push({ user_id: member.user_id, username: member.username });
+                        }
+                    });
+
+                    ledgerMemberCache = members;
+                    return members;
+                } catch (error) {
+                    console.error('加载账本成员失败:', error);
+                    ledgerMemberCache = [];
+                    return ledgerMemberCache;
+                }
+            }
+
+            function updateSplitAmountHint() {
+                const hint = document.getElementById('splitAmountHint');
+                if (!hint) return;
+
+                const totalAmount = parseFloat(document.getElementById('quickAmount').value) || 0;
+                const splitInputs = Array.from(document.querySelectorAll('.split-amount-input'));
+                const splitTotal = splitInputs.reduce((sum, input) => sum + (parseFloat(input.value) || 0), 0);
+                const diff = totalAmount - splitTotal;
+
+                if (splitInputs.length === 0) {
+                    hint.textContent = '当前账本暂无其他成员，可只记录付款人。';
+                    return;
+                }
+
+                hint.textContent = `分摊合计 ¥${splitTotal.toFixed(2)} / 总金额 ¥${totalAmount.toFixed(2)}${Math.abs(diff) > 0.01 ? `，还差 ¥${diff.toFixed(2)}` : '，已匹配'}`;
+                hint.style.color = Math.abs(diff) > 0.01 ? '#dc2626' : '#059669';
+            }
+
+            function renderSplitMembers() {
+                const container = document.getElementById('splitMembersContainer');
+                const section = document.getElementById('sharingSection');
+                const payerSelect = document.getElementById('quickPayerUser');
+                if (!container || !payerSelect || !section) return;
+
+                const members = ledgerMemberCache.length > 0
+                    ? ledgerMemberCache
+                    : [{ user_id: window.activeUserId, username: "{{ username }}" }];
+
+                const hasOthers = members.length > 1 || (members.length === 1 && members[0].user_id !== window.activeUserId);
+                if (!hasOthers) {
+                    section.style.display = 'none';
+                    return;
+                }
+                section.style.display = 'grid';
+
+                payerSelect.innerHTML = members.map(member =>
+                    `<option value="${member.user_id}" ${member.user_id === window.activeUserId ? 'selected' : ''}>${member.username}</option>`
+                ).join('');
+
+                container.innerHTML = members.map(member => `
+                    <div style="display:grid;grid-template-columns:1fr 130px;gap:10px;align-items:center;">
+                        <label style="display:flex;align-items:center;gap:8px;color:#555;">
+                            <input type="checkbox" class="split-member-check" data-user-id="${member.user_id}" data-username="${member.username}" ${member.user_id === window.activeUserId ? 'checked' : ''} onchange="updateSplitAmountHint()">
+                            <span>${member.username}</span>
+                        </label>
+                        <input type="number" class="split-amount-input" data-user-id="${member.user_id}" data-username="${member.username}" step="0.01" min="0" placeholder="0.00" value="${member.user_id === window.activeUserId ? (document.getElementById('quickAmount').value || '') : ''}" oninput="updateSplitAmountHint()">
+                    </div>
+                `).join('');
+
+                updateSplitAmountHint();
+            }
+
+            function collectSplitDetails() {
+                return Array.from(document.querySelectorAll('.split-member-check'))
+                    .filter(input => input.checked)
+                    .map(input => {
+                        const amountInput = document.querySelector(`.split-amount-input[data-user-id="${input.dataset.userId}"]`);
+                        return {
+                            user_id: parseInt(input.dataset.userId),
+                            username: input.dataset.username,
+                            amount: parseFloat(amountInput.value || '0')
+                        };
+                    })
+                    .filter(item => item.amount > 0);
             }
 
             // 加载可报销的支出列表
@@ -4057,6 +4084,8 @@
                 const date = document.getElementById('quickDate').value;
                 const remark = document.getElementById('quickRemark').value;
                 const currency = document.getElementById('quickCurrency').value;
+                const payerUserId = document.getElementById('quickPayerUser')?.value || window.activeUserId;
+                const splitDetails = collectSplitDetails();
 
                 // 前端校验
                 if (!validateForm(type, amount, category, accountId, date)) {
@@ -4068,6 +4097,7 @@
                 submitBtn.textContent = '提交中...';
 
                 try {
+                    const ledgerSelect = document.getElementById('ledgerSelect');
                     const bodyData = {
                         type: type,
                         amount: amount,
@@ -4075,8 +4105,16 @@
                         account_id: parseInt(accountId),
                         date: date,
                         remark: remark,
-                        currency: currency
+                        currency: currency,
+                        payer_user_id: parseInt(payerUserId)
                     };
+                    // 添加账本ID（如果在账本模式下）
+                    if (ledgerSelect && ledgerSelect.value) {
+                        bodyData.ledger_id = parseInt(ledgerSelect.value);
+                    }
+                    if (splitDetails.length > 0) {
+                        bodyData.split_details = splitDetails;
+                    }
                     // 支出：标记为待报销
                     if (type === 'expense' && document.getElementById('quickReimbursable').checked) {
                         bodyData.reimbursement_status = 'pending';
@@ -4088,8 +4126,11 @@
                             bodyData.write_off_id = parseInt(reimbExpenseId);
                         }
                     }
-                    const response = await fetch('/api/transactions', {
-                        method: 'POST',
+                    const editId = flowEditId;
+                    const url = editId ? '/api/transactions/' + editId : '/api/transactions';
+                    const method = editId ? 'PUT' : 'POST';
+                    const response = await fetch(url, {
+                        method: method,
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify(bodyData)
                     });
@@ -4108,10 +4149,12 @@
                         } else {
                             showNotification(msg, 'success');
                         }
+                        flowEditId = null;
                         closeModal();
                         loadData(); // 重新加载数据
                         loadBudget(); // 刷新预算
                         loadAccounts(); // 刷新账户余额
+                        loadMoneyFlow(1); // 刷新资金流动
                     } else {
                         showNotification(data.message || '添加失败', 'error');
                     }
@@ -5388,6 +5431,180 @@
                     closeModal('loanRepayModal');
                 }
             });
+
+            // ==================== 资金流动（统一视图）====================
+            let flowPage = 1;
+            let flowEditId = null;
+
+            function showMoneyFlow() {
+                document.getElementById('moneyFlowSection').scrollIntoView({ behavior: 'smooth', block: 'start' });
+            }
+
+            async function loadMoneyFlow(page) {
+                flowPage = page || 1;
+                const keyword = document.getElementById('flowKeyword').value.trim();
+                const entityType = document.getElementById('flowEntityType').value;
+                const actionType = document.getElementById('flowActionType').value;
+                const dateStart = document.getElementById('flowDateStart').value;
+                const dateEnd = document.getElementById('flowDateEnd').value;
+
+                try {
+                    const params = new URLSearchParams({
+                        page: flowPage,
+                        per_page: 20
+                    });
+                    if (keyword) params.append('keyword', keyword);
+                    if (entityType) params.append('entity_type', entityType);
+                    if (actionType) params.append('action_type', actionType);
+                    if (dateStart) params.append('start_date', dateStart);
+                    if (dateEnd) params.append('end_date', dateEnd);
+
+                    const res = await fetch(`/api/money-change-logs?${params.toString()}`);
+                    const data = await res.json();
+                    if (!data.success) {
+                        showNotification('获取资金流动记录失败', 'error');
+                        return;
+                    }
+
+                    const container = document.getElementById('moneyFlowList');
+
+                    if (data.logs.length === 0) {
+                        container.innerHTML = '<div class="empty-state"><div class="empty-state-icon">📋</div><h4>暂无记录</h4><p>进行记账、借贷等操作后将显示在此处</p></div>';
+                        document.getElementById('flowPaginationControls').innerHTML = '';
+                        return;
+                    }
+
+                    const actionLabels = {
+                        'create': { text: '新增', color: '#10b981' },
+                        'update': { text: '修改', color: '#f59e0b' },
+                        'delete': { text: '删除', color: '#ef4444' },
+                        'adjust': { text: '调整余额', color: '#3b82f6' },
+                        'repay': { text: '借贷还款', color: '#8b5cf6' },
+                        'import': { text: '导入', color: '#06b6d4' }
+                    };
+
+                    const canEdit = can_edit;
+
+                    container.innerHTML = data.logs.map(log => {
+                        const label = actionLabels[log.action_type] || { text: log.action_type, color: '#666' };
+                        const amtColor = log.amount_change > 0 ? '#10b981' : log.amount_change < 0 ? '#ef4444' : '#666';
+                        const amtSign = log.amount_change > 0 ? '+' : '';
+                        const logTime = log.created_at ? new Date(log.created_at).toLocaleString('zh-CN') : '';
+
+                        // 交易类型且交易存在 → 渲染为交易卡片
+                        if (log.entity_type === 'transaction' && log.transaction_exists && log.transaction_data) {
+                            const tx = log.transaction_data;
+                            const isIncome = tx.type === 'income';
+                            const icon = isIncome ? '💰' : '💸';
+                            const amountDisplay = tx.currency && tx.currency !== 'CNY' && tx.original_amount
+                                ? tx.currency + ' ' + tx.original_amount.toFixed(2) + ' (¥' + tx.amount.toFixed(2) + ')'
+                                : (isIncome ? '+' : '-') + '¥' + tx.amount.toFixed(2);
+                            const rowAmtColor = isIncome ? '#10b981' : '#ef4444';
+                            let reimbBadge = '';
+                            if (tx.reimbursement_status && tx.reimbursement_status !== 'none' && tx.reimbursement_status !== '') {
+                                const reimbLabels = {'pending': '待报销', 'partial': '部分报销', 'reimbursed': '已报销'};
+                                reimbBadge = '<span class="reimbursement-badge reimbursement-' + tx.reimbursement_status + '">' + (reimbLabels[tx.reimbursement_status] || tx.reimbursement_status) + '</span>';
+                            }
+                            let actionsHtml = '';
+                            if (log.action_type !== 'delete' && canEdit) {
+                                actionsHtml = '<div style="display:flex;gap:6px;align-items:center;">'
+                                    + '<button onclick="editTransactionFromFlow(' + log.entity_id + ')" style="padding:4px 10px;border:1px solid #d0d0d0;border-radius:6px;background:white;cursor:pointer;font-size:0.75rem;">编辑</button>'
+                                    + '<button onclick="deleteTransaction(' + log.entity_id + ')" style="padding:4px 10px;border:1px solid #ef4444;border-radius:6px;background:white;color:#ef4444;cursor:pointer;font-size:0.75rem;">删除</button>'
+                                    + '</div>';
+                            }
+                            return '<div class="transaction-item">'
+                                + '<div class="transaction-left">'
+                                + '<div class="transaction-icon ' + (isIncome ? 'transaction-income-icon' : 'transaction-expense-icon') + '">' + icon + '</div>'
+                                + '<div class="transaction-info">'
+                                + '<h4>' + escapeHtml(tx.category) + reimbBadge + '</h4>'
+                                + '<p>' + escapeHtml(tx.date || '') + (tx.time ? ' ' + tx.time : '') + ' · ' + escapeHtml(tx.account_name || '') + (tx.remark ? ' · ' + escapeHtml(tx.remark) : '') + '</p>'
+                                + '<p style="font-size:0.8rem;color:#999;"><span style="display:inline-block;padding:1px 6px;border-radius:3px;color:white;font-size:0.7rem;background:' + label.color + ';">' + label.text + '</span> ' + logTime + '</p>'
+                                + '</div></div>'
+                                + '<div class="transaction-amount ' + (isIncome ? 'transaction-income' : 'transaction-expense') + '" style="display:flex;flex-direction:column;align-items:flex-end;gap:4px;">'
+                                + '<span style="color:' + rowAmtColor + ';">' + amountDisplay + '</span>'
+                                + actionsHtml
+                                + '</div></div>';
+                        }
+
+                        // 非交易条目 → 日志卡片
+                        return '<div class="transaction-item" style="cursor:default;">'
+                            + '<div class="transaction-left">'
+                            + '<div class="transaction-info">'
+                            + '<h4><span style="display:inline-block;padding:2px 8px;border-radius:4px;color:white;font-size:0.75rem;background:' + label.color + ';">' + label.text + '</span> '
+                            + escapeHtml(log.description || '') + '</h4>'
+                            + '<p style="font-size:0.8rem;color:#999;margin-top:4px;">'
+                            + logTime
+                            + (log.username ? ' · 👤 ' + escapeHtml(log.username) : '')
+                            + (log.account_name ? ' · 🏦 ' + escapeHtml(log.account_name) : '')
+                            + (log.balance_before != null ? ' · 余额: ￥' + log.balance_before.toFixed(2) + ' → ￥' + (log.balance_after != null ? log.balance_after.toFixed(2) : '') : '')
+                            + '</p></div></div>'
+                            + '<div class="transaction-amount" style="color:' + amtColor + ';">'
+                            + amtSign + '¥' + Math.abs(log.amount_change).toFixed(2)
+                            + '</div></div>';
+                    }).join('');
+
+                    // 分页
+                    const pagination = document.getElementById('flowPaginationControls');
+                    if (data.total_pages > 1) {
+                        let html = '<div class="pagination" style="display:flex;justify-content:center;gap:6px;margin-top:15px;">';
+                        if (data.page > 1) {
+                            html += '<button onclick="loadMoneyFlow(' + (data.page - 1) + ')" style="padding:6px 14px;border:1px solid #d0d0d0;border-radius:6px;background:white;cursor:pointer;">上一页</button>';
+                        }
+                        html += '<span style="padding:6px 14px;color:#666;">' + data.page + ' / ' + data.total_pages + '</span>';
+                        if (data.page < data.total_pages) {
+                            html += '<button onclick="loadMoneyFlow(' + (data.page + 1) + ')" style="padding:6px 14px;border:1px solid #d0d0d0;border-radius:6px;background:white;cursor:pointer;">下一页</button>';
+                        }
+                        html += '</div>';
+                        pagination.innerHTML = html;
+                    } else {
+                        pagination.innerHTML = '';
+                    }
+                } catch (e) {
+                    showNotification('网络错误', 'error');
+                }
+            }
+
+            // 从资金流动列表中编辑交易
+            function editTransactionFromFlow(txId) {
+                const tx = allTransactions.find(t => t.id === txId);
+                if (!tx) {
+                    showNotification('未找到该交易记录', 'error');
+                    return;
+                }
+                const type = tx.type || 'expense';
+                document.getElementById('quickType').value = type;
+                document.getElementById('modalTitle').textContent = type === 'income' ? '✏️ 编辑收入' : '✏️ 编辑支出';
+                document.getElementById('quickAmount').value = tx.amount;
+                document.getElementById('quickDate').value = tx.date;
+                document.getElementById('quickRemark').value = tx.remark || '';
+
+                const categorySelect = document.getElementById('quickCategory');
+                const cats = categoryCache[type] || [];
+                categorySelect.innerHTML = '<option value="">请选择分类</option>';
+                cats.forEach(c => {
+                    categorySelect.innerHTML += '<option value="' + c.name + '"' + (c.name === tx.category ? ' selected' : '') + '>' + c.name + '</option>';
+                });
+
+                const accountSelect = document.getElementById('quickAccount');
+                accountSelect.innerHTML = '<option value="">请选择账户</option>';
+                accountCache.forEach(a => {
+                    accountSelect.innerHTML += '<option value="' + a.id + '"' + (a.id === tx.account_id ? ' selected' : '') + '>' + a.name + ' (¥' + a.balance.toFixed(2) + ')</option>';
+                });
+
+                document.getElementById('reimbMarkGroup').style.display = type === 'expense' ? 'block' : 'none';
+                document.getElementById('quickReimbursable').checked = tx.reimbursement_status === 'pending';
+                document.getElementById('reimbExpenseGroup').style.display = 'none';
+
+                document.getElementById('quickCurrency').value = tx.currency || 'CNY';
+                updateCurrencyHint(tx.currency || 'CNY');
+
+                flowEditId = txId;
+                document.getElementById('submitBtn').textContent = '保存修改';
+
+                document.getElementById('quickAddModal').classList.add('show');
+                setTimeout(() => document.getElementById('quickAmount').focus(), 100);
+            }
+
         </script>
 </body>
 
