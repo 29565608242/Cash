@@ -1,0 +1,78 @@
+.card {
+  background: $bg-card;
+  border-radius: $radius-lg;
+  padding: $spacing-xl;
+  margin: $spacing-sm $spacing-md;
+  box-shadow: 0 10rpx 26rpx rgba(52, 73, 135, 0.06);
+}
+
+.btn-primary {
+  background: linear-gradient(135deg, $primary 0%, $primary-dark 100%);
+  color: #fff;
+  border-radius: $radius-md;
+  padding: 24rpx;
+  text-align: center;
+  font-size: 32rpx;
+  font-weight: 600;
+}
+
+.text-muted {
+  color: $text-secondary;
+}
+
+.page-wrap {
+  padding: 12rpx 0 24rpx;
+}
+
+.row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.list-item {
+  padding: 22rpx 0;
+  border-bottom: 1px solid $border;
+}
+
+.list-item:last-child {
+  border-bottom: none;
+}
+
+.input {
+  height: 92rpx;
+  border: 1px solid $border;
+  border-radius: $radius-md;
+  padding: 0 22rpx;
+  margin-bottom: 14rpx;
+  background: #fff;
+  font-size: 30rpx;
+}
+
+.textarea {
+  width: 100%;
+  min-height: 160rpx;
+  border: 1px solid $border;
+  border-radius: $radius-md;
+  padding: 16rpx 22rpx;
+  margin-bottom: 14rpx;
+  background: #fff;
+}
+
+.chip {
+  font-size: 22rpx;
+  color: $text-secondary;
+  background: #f3f4f6;
+  border-radius: 999rpx;
+  padding: 8rpx 14rpx;
+}
+
+.actions {
+  display: flex;
+  gap: 12rpx;
+}
+
+.btn-line {
+  color: $primary;
+  font-size: 28rpx;
+}

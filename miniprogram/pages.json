@@ -1,0 +1,164 @@
+{
+  "easycom": {
+    "autoscan": true
+  },
+  "pages": [
+    {
+      "path": "pages/login/index",
+      "style": {
+        "navigationBarTitleText": "登录"
+      }
+    },
+    {
+      "path": "pages/register/index",
+      "style": {
+        "navigationBarTitleText": "注册"
+      }
+    },
+    {
+      "path": "pages/index/index",
+      "style": {
+        "navigationBarTitleText": "首页"
+      }
+    },
+    {
+      "path": "pages/transaction-add/index",
+      "style": {
+        "navigationBarTitleText": "记一笔"
+      }
+    },
+    {
+      "path": "pages/transactions/index",
+      "style": {
+        "navigationBarTitleText": "交易流水"
+      }
+    },
+    {
+      "path": "pages/transaction-edit/index",
+      "style": {
+        "navigationBarTitleText": "编辑交易"
+      }
+    },
+    {
+      "path": "pages/transaction-detail/index",
+      "style": {
+        "navigationBarTitleText": "交易详情"
+      }
+    },
+    {
+      "path": "pages/accounts/index",
+      "style": {
+        "navigationBarTitleText": "账户管理"
+      }
+    },
+    {
+      "path": "pages/ledgers/index",
+      "style": {
+        "navigationBarTitleText": "账本管理"
+      }
+    },
+    {
+      "path": "pages/ledger-members/index",
+      "style": {
+        "navigationBarTitleText": "账本成员"
+      }
+    },
+    {
+      "path": "pages/budget/index",
+      "style": {
+        "navigationBarTitleText": "预算管理"
+      }
+    },
+    {
+      "path": "pages/loans/index",
+      "style": {
+        "navigationBarTitleText": "借贷管理"
+      }
+    },
+    {
+      "path": "pages/loan-add/index",
+      "style": {
+        "navigationBarTitleText": "新增借贷"
+      }
+    },
+    {
+      "path": "pages/reimbursement/index",
+      "style": {
+        "navigationBarTitleText": "报销管理"
+      }
+    },
+    {
+      "path": "pages/recurring/index",
+      "style": {
+        "navigationBarTitleText": "周期账单"
+      }
+    },
+    {
+      "path": "pages/recurring-add/index",
+      "style": {
+        "navigationBarTitleText": "新增周期规则"
+      }
+    },
+    {
+      "path": "pages/reports/index",
+      "style": {
+        "navigationBarTitleText": "流水报表"
+      }
+    },
+    {
+      "path": "pages/smart-bookkeeping/index",
+      "style": {
+        "navigationBarTitleText": "智能记账"
+      }
+    },
+    {
+      "path": "pages/ai-analysis/index",
+      "style": {
+        "navigationBarTitleText": "AI 分析"
+      }
+    },
+    {
+      "path": "pages/change-password/index",
+      "style": {
+        "navigationBarTitleText": "修改密码"
+      }
+    },
+    {
+      "path": "pages/about/index",
+      "style": {
+        "navigationBarTitleText": "关于"
+      }
+    },
+    {
+      "path": "pages/profile/index",
+      "style": {
+        "navigationBarTitleText": "我的"
+      }
+    }
+  ],
+  "globalStyle": {
+    "navigationBarTextStyle": "black",
+    "navigationBarBackgroundColor": "#FFFFFF",
+    "backgroundColor": "#F3F4F6"
+  },
+  "tabBar": {
+    "color": "#9CA3AF",
+    "selectedColor": "#4361EE",
+    "backgroundColor": "#FFFFFF",
+    "borderStyle": "black",
+    "list": [
+      {
+        "pagePath": "pages/index/index",
+        "text": "首页"
+      },
+      {
+        "pagePath": "pages/reports/index",
+        "text": "流水报表"
+      },
+      {
+        "pagePath": "pages/profile/index",
+        "text": "我的"
+      }
+    ]
+  }
+}

@@ -6,6 +6,7 @@ from .models import RecurringRule
 # import routes for side effects
 from . import routes_base, routes_transactions, routes_finance, routes_ledgers  # noqa: F401
 from .routes_finance import _generate_rule_transaction
+from .routes_miniapp import miniapp_bp
 from .init_db import initialize_db
 
 from blueprints.import_export import import_export_bp
@@ -13,6 +14,7 @@ from blueprints.smart_bookkeeping import smart_bp
 
 app.register_blueprint(import_export_bp)
 app.register_blueprint(smart_bp)
+app.register_blueprint(miniapp_bp)
 
 
 def run_startup_jobs():

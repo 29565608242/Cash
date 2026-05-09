@@ -1,0 +1,21 @@
+{
+  "name": "cash-miniapp",
+  "appid": "__UNI__CASH_MINIAPP",
+  "description": "线上记账小程序",
+  "vueVersion": "3",
+  "versionName": "1.0.0",
+  "versionCode": "100",
+  "transformPx": false,
+  "h5": {
+    "devServer": {
+      "port": 8090
+    }
+  },
+  "mp-weixin": {
+    "appid": "",
+    "setting": {
+      "urlCheck": false,
+      "es6": true
+    }
+  }
+}
