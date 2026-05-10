@@ -1,7 +1,10 @@
 <template>
   <view class="page-wrap report-page">
     <view class="card summary-card">
-      <view class="section-title">流水报表</view>
+      <view class="section-title-row">
+        <text class="section-title">流水报表</text>
+        <text class="btn-switch-ledger" @tap="switchLedger">{{ currentLedgerName }} ▾</text>
+      </view>
       <view class="toolbar">
         <picker mode="selector" :range="periodOptions" :value="periodIndex" @change="onPeriodChange">
           <view class="picker">{{ periodOptions[periodIndex] }}</view>
@@ -41,9 +44,9 @@
     </view>
 
     <view class="card">
-      <view class="section-subtitle">流水明细</view>
+      <view class="section-subtitle">流水明细（共 {{ transactions.length }} 条）</view>
       <view v-if="!transactions.length" class="text-muted">暂无交易数据</view>
-      <view v-for="item in transactions" :key="item.id" class="tx-row">
+      <view v-for="item in pagedTransactions" :key="item.id" class="tx-row">
         <view class="tx-main" @tap="openDetail(item.id)">
           <text class="tx-cat">{{ item.category }}</text>
           <text class="tx-meta">{{ item.date }} {{ item.time }}</text>
@@ -51,6 +54,11 @@
         <text :class="item.type === 'income' ? 'tx-amount income' : 'tx-amount expense'">
           {{ item.type === 'income' ? '+' : '-' }}￥{{ formatMoney(item.amount) }}
         </text>
+      </view>
+      <view v-if="transactions.length > pageSize" class="pagination">
+        <view class="page-btn" :class="{ disabled: currentPage <= 1 }" @tap="prevPage">上一页</view>
+        <text class="page-info">{{ currentPage }} / {{ totalPages }}</text>
+        <view class="page-btn" :class="{ disabled: currentPage >= totalPages }" @tap="nextPage">下一页</view>
       </view>
     </view>
   </view>
@@ -62,6 +70,9 @@ import { onShow } from '@dcloudio/uni-app'
 import { api, endpoints } from '../../services/api'
 import { formatMoney, showError } from '../../services/utils'
 
+
+const pageSize = 8
+const currentPage = ref(1)
 const periodOptions = ['最近', '今天', '本月', '本年']
 const periodMap = ['', 'day', 'month', 'year']
 const reportPeriodMap = ['week', 'week', 'month', 'year']
@@ -75,6 +86,21 @@ const summary = reactive({
 })
 const categoryStats = ref([])
 const transactions = ref([])
+
+const totalPages = computed(() => Math.max(1, Math.ceil(transactions.value.length / pageSize)))
+
+const pagedTransactions = computed(() => {
+  const start = (currentPage.value - 1) * pageSize
+  return transactions.value.slice(start, start + pageSize)
+})
+
+function prevPage() {
+  if (currentPage.value > 1) currentPage.value--
+}
+
+function nextPage() {
+  if (currentPage.value < totalPages.value) currentPage.value++
+}
 
 const topCategories = computed(() => {
   return [...categoryStats.value]
@@ -92,6 +118,10 @@ async function loadReport() {
     const res = await api.get(endpoints.reportAdvanced, { period })
     Object.assign(summary, res.summary || {})
     categoryStats.value = res.category_stats || []
+    if (res.current_ledger_name) {
+      currentLedgerName.value = res.current_ledger_name
+      currentLedgerId.value = res.current_ledger_id
+    }
   } catch (error) {
     showError(error, '加载报表失败')
   }
@@ -102,6 +132,7 @@ async function loadTransactions() {
     const period = periodMap[periodIndex.value]
     const res = await api.get(endpoints.transactions, { period, limit: 100 })
     transactions.value = res.transactions || []
+    currentPage.value = 1
   } catch (error) {
     showError(error, '加载流水失败')
   }
@@ -117,6 +148,32 @@ function onPeriodChange(event) {
   reloadAll()
 }
 
+async function switchLedger() {
+  try {
+    const res = await api.get(endpoints.ledgers)
+    const list = res.ledgers || []
+    if (!list.length) {
+      uni.showToast({ title: '请先创建账本', icon: 'none' })
+      setTimeout(() => uni.navigateTo({ url: '/pages/ledgers/index' }), 800)
+      return
+    }
+    const names = list.map((item) => item.name)
+    uni.showActionSheet({
+      itemList: names,
+      success: async (e) => {
+        const ledger = list[e.tapIndex]
+        await api.post(endpoints.ledgers + '/' + ledger.id + '/switch', {})
+        currentLedgerName.value = ledger.name
+        currentLedgerId.value = ledger.id
+        uni.showToast({ title: '已切换到: ' + ledger.name, icon: 'success' })
+        reloadAll()
+      }
+    })
+  } catch (error) {
+    uni.showToast({ title: error.message || '失败', icon: 'none' })
+  }
+}
+
 onShow(reloadAll)
 </script>
 
@@ -128,10 +185,24 @@ onShow(reloadAll)
   padding-bottom: 24rpx;
 }
 
+.section-title-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
 .section-title {
   font-size: 40rpx;
   font-weight: 700;
   color: #1f2937;
+}
+
+.btn-switch-ledger {
+  font-size: 24rpx;
+  color: $primary;
+  padding: 6rpx 16rpx;
+  border: 1px solid $primary;
+  border-radius: 12rpx;
 }
 
 .section-subtitle {
@@ -263,5 +334,31 @@ onShow(reloadAll)
 
 .tx-amount.expense {
   color: #df4b4b;
+}
+.pagination {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 20rpx;
+  margin-top: 20rpx;
+  padding-top: 16rpx;
+  border-top: 1px solid $border;
+}
+
+.page-btn {
+  padding: 12rpx 28rpx;
+  border: 1px solid $primary;
+  border-radius: 12rpx;
+  font-size: 26rpx;
+  color: $primary;
+}
+
+.page-btn.disabled {
+  opacity: 0.4;
+}
+
+.page-info {
+  font-size: 26rpx;
+  color: $text-secondary;
 }
 </style>

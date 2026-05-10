@@ -1,7 +1,11 @@
 <template>
   <view class="page">
     <view class="card user">
-      <view class="avatar">{{ userInitial }}</view>
+      <view class="avatar-wrap" @tap="changeAvatar">
+        <image v-if="form.avatar && form.avatar !== 'default_avatar.svg'" class="avatar-img" :src="form.avatar" mode="aspectFill" />
+        <view v-else class="avatar">{{ userInitial }}</view>
+        <view class="avatar-overlay">更换</view>
+      </view>
       <view class="meta">
         <text class="name">{{ form.username || '-' }}</text>
         <text class="muted">{{ form.email || '未设置邮箱' }}</text>
@@ -37,6 +41,7 @@ const form = reactive({
   nickname: '',
   email: '',
   phone: '',
+  avatar: '',
 })
 
 const password = reactive({
@@ -46,6 +51,37 @@ const password = reactive({
 
 const userInitial = computed(() => (form.username || 'U').charAt(0).toUpperCase())
 
+async function changeAvatar() {
+  uni.chooseImage({
+    count: 1,
+    success: async (res) => {
+      const tempPath = res.tempFilePaths[0]
+      uni.showLoading({ title: '上传中...' })
+      try {
+        const uploadRes = await uni.uploadFile({
+          url: 'http://127.0.0.1:8080/api/miniapp/upload',
+          filePath: tempPath,
+          name: 'file',
+          header: { Authorization: 'Bearer ' + store.state.token }
+        })
+        uni.hideLoading()
+        const data = JSON.parse(uploadRes.data || '{}')
+        if (data.file && data.file.url) {
+          const avatarUrl = 'http://127.0.0.1:8080/static/avatars/' + data.file.name
+          form.avatar = avatarUrl
+          await api.put('/api/user/profile', { avatar: data.file.name })
+          uni.showToast({ title: '头像已更新', icon: 'success' })
+        } else {
+          uni.showToast({ title: data.message || '上传失败', icon: 'none' })
+        }
+      } catch (error) {
+        uni.hideLoading()
+        uni.showToast({ title: '上传失败', icon: 'none' })
+      }
+    }
+  })
+}
+
 async function loadProfile() {
   try {
     const res = await api.get('/api/user/profile')
@@ -54,6 +90,7 @@ async function loadProfile() {
     form.nickname = user.nickname || ''
     form.email = user.email || ''
     form.phone = user.phone || ''
+    form.avatar = user.avatar || ''
   } catch (error) {
     uni.showToast({ title: error.message || '加载失败', icon: 'none' })
   }
@@ -115,16 +152,43 @@ onShow(() => {
   gap: 20rpx;
 }
 
+.avatar-wrap {
+  position: relative;
+  width: 90rpx;
+  height: 90rpx;
+  flex-shrink: 0;
+}
+
+.avatar-img {
+  width: 90rpx;
+  height: 90rpx;
+  border-radius: 45rpx;
+  background: #f0f2f5;
+}
+
 .avatar {
-  width: 84rpx;
-  height: 84rpx;
-  border-radius: 42rpx;
+  width: 90rpx;
+  height: 90rpx;
+  border-radius: 45rpx;
   background: linear-gradient(135deg, #5770f2 0%, #3551d0 100%);
   color: #fff;
   text-align: center;
-  line-height: 84rpx;
+  line-height: 90rpx;
   font-size: 36rpx;
   font-weight: 700;
+}
+
+.avatar-overlay {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  background: rgba(0,0,0,0.5);
+  color: #fff;
+  font-size: 18rpx;
+  text-align: center;
+  line-height: 28rpx;
+  border-radius: 0 0 45rpx 45rpx;
 }
 
 .meta {

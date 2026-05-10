@@ -23,6 +23,14 @@ def _get_user_from_token():
     session['user_id'] = user.id
     session['is_admin'] = bool(user.is_admin)
     session.setdefault('self_view', True)
+    # Restore active_ledger_id from token store
+    try:
+        from .routes_miniapp import _prune_token, _extract_token
+        info = _prune_token(_extract_token(auth_header))
+        if info and info.get('active_ledger_id'):
+            session['active_ledger_id'] = info['active_ledger_id']
+    except Exception:
+        pass
     return user
 
 

@@ -6,8 +6,7 @@
         <view :class="tx.type === 'expense' ? 'seg active' : 'seg'" @tap="tx.type = 'expense'">支出</view>
       </view>
 
-      <amount-input v-model="tx.amount" placeholder="金额" />
-      <view style="height: 14rpx"></view>
+      <input class="input amount-input" type="digit" v-model="tx.amount" placeholder="金额（必填）" />
 
       <picker mode="selector" :range="categories" @change="onCategoryChange">
         <view class="picker">分类：{{ tx.category || '请选择' }}</view>
@@ -25,8 +24,9 @@
         非人民币将按后端实时汇率折算为人民币入账
       </view>
 
-      <input class="input" v-model="tx.date" placeholder="日期 YYYY-MM-DD" />
-      <input class="input" v-model="tx.time" placeholder="时间 HH:mm:ss" />
+      <picker mode="date" :value="tx.date" @change="onDateChange">
+        <view class="picker">日期：{{ tx.date }}</view>
+      </picker>
       <input class="input" v-model="tx.remark" placeholder="备注（可选）" />
 
       <view class="btn-primary" @tap="submit">保存交易</view>
@@ -38,7 +38,7 @@
 import { computed, reactive, ref, watch } from 'vue'
 import { onShow } from '@dcloudio/uni-app'
 import { api, endpoints } from '../../services/api'
-import { nowTime, today } from '../../services/utils'
+import { today } from '../../services/utils'
 
 const tx = reactive({
   type: 'expense',
@@ -47,7 +47,6 @@ const tx = reactive({
   account_id: null,
   currency: 'CNY',
   date: today(),
-  time: nowTime(),
   remark: '',
 })
 
@@ -56,19 +55,19 @@ const categories = ref([])
 const accounts = ref([])
 
 const currencyOptions = [
-  'CNY',
-  'USD',
-  'EUR',
-  'GBP',
-  'JPY',
-  'HKD',
-  'KRW',
-  'SGD',
-  'THB',
-  'TWD',
-  'AUD',
-  'CAD',
-  'MYR',
+  '人民币 CNY ¥',
+  '美元 USD $',
+  '欧元 EUR €',
+  '英镑 GBP £',
+  '日元 JPY ¥',
+  '港币 HKD HK$',
+  '韩元 KRW ₩',
+  '新加坡元 SGD S$',
+  '泰钢 THB ฿',
+  '新台币 TWD NT$',
+  '澳元 AUD A$',
+  '加元 CAD C$',
+  '林吉特 MYR RM',
 ]
 
 const accountOptions = computed(() =>
@@ -87,7 +86,7 @@ const accountText = computed(() => {
 })
 
 const currencyIndex = computed(() => {
-  const idx = currencyOptions.findIndex((code) => code === tx.currency)
+  const idx = currencyCodes.findIndex((code) => code === tx.currency)
   return idx >= 0 ? idx : 0
 })
 
@@ -118,7 +117,11 @@ function onAccountChange(event) {
 
 function onCurrencyChange(event) {
   const idx = Number(event.detail.value || 0)
-  tx.currency = currencyOptions[idx] || 'CNY'
+  tx.currency = currencyCodes[idx] || 'CNY'
+}
+
+function onDateChange(event) {
+  tx.date = event.detail.value || today()
 }
 
 async function loadCategories() {
@@ -168,7 +171,6 @@ async function submit() {
       amount,
       category: tx.category,
       date: tx.date || today(),
-      time: tx.time || nowTime(),
       remark: tx.remark,
       account_id: tx.account_id,
       currency: tx.currency,
@@ -178,7 +180,6 @@ async function submit() {
     tx.amount = ''
     tx.remark = ''
     tx.currency = 'CNY'
-    tx.time = nowTime()
     uni.switchTab({ url: '/pages/index/index' })
   } catch (error) {
     uni.showToast({ title: error.message || '保存失败', icon: 'none' })
@@ -228,6 +229,11 @@ onShow(() => {
   margin-bottom: 14rpx;
 }
 
+.amount-input {
+    font-size: 34rpx;
+    height: 90rpx;
+  }
+
 .picker {
   height: 84rpx;
   border: 1px solid $border;
@@ -247,3 +253,5 @@ onShow(() => {
   padding: 12rpx 16rpx;
 }
 </style>
+
+

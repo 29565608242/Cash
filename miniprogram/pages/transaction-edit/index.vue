@@ -5,8 +5,7 @@
         <view class="input">类型：{{ typeOptions[typeIndex] }}</view>
       </picker>
 
-      <amount-input v-model="form.amount" placeholder="金额" />
-      <view style="height: 14rpx"></view>
+      <input class="input amount-input" type="digit" v-model="form.amount" placeholder="金额（必填）" />
 
       <picker mode="selector" :range="categories" @change="onCategoryChange">
         <view class="picker">分类：{{ form.category || '请选择' }}</view>
@@ -24,8 +23,9 @@
         非人民币将按后端实时汇率折算为人民币入账
       </view>
 
-      <input class="input" v-model="form.date" placeholder="日期 YYYY-MM-DD" />
-      <input class="input" v-model="form.time" placeholder="时间 HH:mm:ss" />
+      <picker mode="date" :value="form.date" @change="onDateChange">
+        <view class="picker">日期：{{ form.date }}</view>
+      </picker>
       <input class="input" v-model="form.remark" placeholder="备注" />
 
       <view class="btn-primary" @tap="submit">保存修改</view>
@@ -50,19 +50,19 @@ const categories = ref([])
 const accounts = ref([])
 
 const currencyOptions = [
-  'CNY',
-  'USD',
-  'EUR',
-  'GBP',
-  'JPY',
-  'HKD',
-  'KRW',
-  'SGD',
-  'THB',
-  'TWD',
-  'AUD',
-  'CAD',
-  'MYR',
+  '人民币 CNY ¥',
+  '美元 USD $',
+  '欧元 EUR €',
+  '英镑 GBP £',
+  '日元 JPY ¥',
+  '港币 HKD HK$',
+  '韩元 KRW ₩',
+  '新加坡元 SGD S$',
+  '泰钢 THB ฿',
+  '新台币 TWD NT$',
+  '澳元 AUD A$',
+  '加元 CAD C$',
+  '林吉特 MYR RM',
 ]
 
 const form = reactive({
@@ -70,7 +70,6 @@ const form = reactive({
   amount: '',
   category: '',
   date: '',
-  time: '',
   remark: '',
   account_id: null,
   currency: 'CNY',
@@ -91,7 +90,7 @@ const accountText = computed(() => {
 })
 
 const currencyIndex = computed(() => {
-  const idx = currencyOptions.findIndex((code) => code === form.currency)
+  const idx = currencyCodes.findIndex((code) => code === form.currency)
   return idx >= 0 ? idx : 0
 })
 
@@ -128,7 +127,11 @@ function onAccountChange(e) {
 
 function onCurrencyChange(e) {
   const idx = Number(e.detail.value || 0)
-  form.currency = currencyOptions[idx] || 'CNY'
+  form.currency = currencyCodes[idx] || 'CNY'
+}
+
+function onDateChange(e) {
+  form.date = e.detail.value || new Date().toISOString().slice(0, 10)
 }
 
 async function loadCategories() {
@@ -168,7 +171,6 @@ async function loadTransaction() {
   form.type = tx.type || 'expense'
   form.category = tx.category || ''
   form.date = tx.date || ''
-  form.time = tx.time || ''
   form.remark = tx.remark || ''
   form.account_id = tx.account_id || null
   form.currency = tx.currency || 'CNY'
@@ -211,7 +213,6 @@ async function submit() {
       amount,
       category: form.category,
       date: form.date,
-      time: form.time,
       remark: form.remark,
       account_id: form.account_id,
       currency: form.currency,
@@ -228,6 +229,12 @@ async function submit() {
 <style lang="scss" scoped>
 @import '../../styles/variables.scss';
 @import '../../styles/components.scss';
+
+.amount-input {
+  font-size: 44rpx;
+  font-weight: 700;
+  height: 100rpx;
+}
 
 .picker {
   height: 84rpx;

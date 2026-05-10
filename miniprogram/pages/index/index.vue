@@ -2,7 +2,10 @@
   <view class="page-wrap index-page">
     <view class="card panel panel-quick">
       <view class="quick-head">
-        <text class="quick-title">快速记账</text>
+        <view class="quick-head-row">
+          <text class="quick-title">快速记账</text>
+          <text class="btn-switch-ledger" @tap="goLedger">{{ state.currentLedgerName }} ▾</text>
+        </view>
         <text class="quick-tip">一键完成常用操作</text>
       </view>
       <view class="quick-grid">
@@ -60,7 +63,6 @@
         <view class="entry-item" @tap="go('/pages/loans/index')">借贷管理</view>
         <view class="entry-item" @tap="go('/pages/reimbursement/index')">报销管理</view>
         <view class="entry-item" @tap="go('/pages/recurring/index')">周期账单</view>
-        <view class="entry-item" @tap="go('/pages/reports/index')">流水报表</view>
         <view class="entry-item" @tap="go('/pages/ai-analysis/index')">AI 分析</view>
       </view>
     </view>
@@ -95,6 +97,8 @@ const state = reactive({
     balance: 0,
   },
   recent_transactions: [],
+  currentLedgerId: null,
+  currentLedgerName: '切换账本',
 })
 
 async function loadDashboard() {
@@ -103,6 +107,10 @@ async function loadDashboard() {
     const payload = res.data || {}
     state.summary = payload.summary || state.summary
     state.recent_transactions = payload.recent_transactions || []
+    if (payload.current_ledger_name) {
+      state.currentLedgerName = payload.current_ledger_name
+      state.currentLedgerId = payload.current_ledger_id
+    }
   } catch (error) {
     uni.showToast({ title: error.message || '加载失败', icon: 'none' })
   }
@@ -118,6 +126,32 @@ function go(url) {
     return
   }
   uni.navigateTo({ url })
+}
+
+async function goLedger() {
+  try {
+    const res = await api.get('/api/ledgers')
+    const list = res.ledgers || []
+    if (!list.length) {
+        uni.showToast({ title: "请先创建账本", icon: "none" })
+        setTimeout(() => uni.navigateTo({ url: '/pages/ledgers/index' }), 800)
+      return
+    }
+    const names = list.map((item) => item.name)
+    uni.showActionSheet({
+      itemList: names,
+      success: async (e) => {
+        const ledger = list[e.tapIndex]
+        await api.post('/api/ledgers/' + ledger.id + '/switch', {})
+        state.currentLedgerName = ledger.name
+        state.currentLedgerId = ledger.id
+        uni.showToast({ title: '已切换到: ' + ledger.name, icon: 'success' })
+        loadDashboard()
+      }
+    })
+  } catch (error) {
+    uni.showToast({ title: error.message || '失败', icon: 'none' })
+  }
 }
 
 onShow(loadDashboard)
@@ -138,7 +172,6 @@ onShow(loadDashboard)
 .section-title {
   font-size: 40rpx;
   font-weight: 700;
-  margin-bottom: 16rpx;
   color: #1f2937;
 }
 
@@ -149,6 +182,20 @@ onShow(loadDashboard)
 
 .quick-head {
   margin-bottom: 16rpx;
+}
+
+.quick-head-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.btn-switch-ledger {
+  font-size: 24rpx;
+  color: $primary;
+  padding: 6rpx 16rpx;
+  border: 1px solid $primary;
+  border-radius: 12rpx;
 }
 
 .quick-title {

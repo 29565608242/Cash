@@ -127,6 +127,12 @@ def delete_ledger(ledger_id):
         ledger = Ledger.query.get_or_404(ledger_id)
         if ledger.owner_id != session.get('user_id'):
             return jsonify({'success': False, 'message': '只有账本所有者才能删除'}), 403
+        # Prevent deletion of the user's personal default ledger
+        user = User.query.get(session.get('user_id'))
+        if ledger.name == f"{user.username}的个人账本":
+            owner_count = Ledger.query.filter_by(owner_id=user.id, is_active=True).count()
+            if owner_count <= 1:
+                return jsonify({'success': False, 'message': '不能删除个人的默认账本'}), 403
         ledger.is_active = False
         db.session.commit()
         return jsonify({'success': True, 'message': '账本已删除'})
@@ -145,6 +151,11 @@ def switch_ledger(ledger_id):
         if not has_access:
             return error
         session['active_ledger_id'] = ledger_id
+        # Also update token store for mini app persistence
+        from .routes_miniapp import set_token_active_ledger
+        auth_header = request.headers.get('Authorization', '')
+        if auth_header:
+            set_token_active_ledger(auth_header, ledger_id)
         return jsonify({'success': True, 'message': '已切换账本', 'role': role})
     except Exception as e:
         app.logger.error(f"切换账本失败: {e}")

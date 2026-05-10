@@ -1,4 +1,4 @@
-<template>
+﻿<template>
   <view class="amount-input">
     <input
       class="input"

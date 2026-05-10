@@ -43,12 +43,19 @@ def _prune_token(token):
     return info
 
 
-def generate_token(user_id):
+def set_token_active_ledger(auth_header, ledger_id):
+    token = _extract_token(auth_header)
+    if token and token in _tokens:
+        _tokens[token]["active_ledger_id"] = ledger_id
+
+
+def generate_token(user_id, active_ledger_id=None):
     raw = f'{user_id}:{time.time()}:{secrets.token_hex(16)}:{app.config["SECRET_KEY"]}'
     token = hashlib.sha256(raw.encode('utf-8')).hexdigest()
     _tokens[token] = {
         'user_id': user_id,
         'expires_at': time.time() + TOKEN_EXPIRE_SECONDS,
+        'active_ledger_id': active_ledger_id,
     }
     return token
 
@@ -82,6 +89,10 @@ def token_required(f):
             return jsonify({'success': False, 'message': '登录已过期，请重新登录'}), 401
 
         _apply_user_session(user)
+        # Restore active ledger from token store
+        info = _prune_token(token)
+        if info and info.get('active_ledger_id'):
+            session['active_ledger_id'] = info['active_ledger_id']
         return f(*args, **kwargs)
 
     return decorated
@@ -92,7 +103,7 @@ def _build_auth_payload(user):
         'id': user.id,
         'username': user.username,
         'nickname': user.nickname,
-        'avatar': user.avatar,
+        'avatar': f'http://127.0.0.1:8080/static/avatars/{user.avatar}' if user.avatar and user.avatar not in ('default_avatar.svg', 'default_avatar.png') else 'http://127.0.0.1:8080/static/avatars/default_avatar.svg',
         'email': user.email,
         'phone': user.phone,
         'is_admin': bool(user.is_admin),
@@ -133,8 +144,12 @@ def _login_by_username_password():
     user.last_login = datetime.now()
     db.session.commit()
 
-    token = generate_token(user.id)
+    # Preserve user's active ledger across logins
+    user_ledger_id = get_current_ledger_id()
+    token = generate_token(user.id, active_ledger_id=user_ledger_id)
     _apply_user_session(user)
+    if user_ledger_id and not session.get('active_ledger_id'):
+        session['active_ledger_id'] = user_ledger_id
     return jsonify({'success': True, 'token': token, 'user': _build_auth_payload(user)})
 
 
@@ -161,7 +176,7 @@ def _register_by_username_password():
     _register_default_ledger_and_account(user)
     db.session.commit()
 
-    token = generate_token(user.id)
+    token = generate_token(user.id, active_ledger_id=session.get('active_ledger_id'))
     _apply_user_session(user)
     return (
         jsonify({'success': True, 'token': token, 'user': _build_auth_payload(user)}),
@@ -358,7 +373,7 @@ def miniapp_upload():
     if ext not in allowed_ext:
         return jsonify({'success': False, 'message': '仅支持图片文件'}), 400
 
-    upload_dir = os.path.join(app.static_folder, 'uploads', 'miniapp')
+    upload_dir = os.path.join(app.static_folder, 'avatars')
     os.makedirs(upload_dir, exist_ok=True)
 
     filename = f'{datetime.now().strftime("%Y%m%d%H%M%S")}_{secrets.token_hex(8)}.{ext}'
@@ -366,7 +381,7 @@ def miniapp_upload():
     save_path = os.path.join(upload_dir, safe_name)
     file.save(save_path)
 
-    file_url = f'/static/uploads/miniapp/{safe_name}'
+    file_url = safe_name
     return jsonify({
         'success': True,
         'message': '上传成功',

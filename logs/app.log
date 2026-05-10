@@ -71,3 +71,176 @@
 [2026-05-09 22:39:45] INFO in core: 线上记账管理系统 启动成功
 [2026-05-09 22:39:45] INFO in core: 数据文件: D:\code\cash\data\data.json
 [2026-05-09 22:39:45] INFO in core: 日志级别: INFO
+[2026-05-10 10:34:10] INFO in core: 线上记账管理系统 启动成功
+[2026-05-10 10:34:10] INFO in core: 数据文件: D:\code\cash\data\data.json
+[2026-05-10 10:34:10] INFO in core: 日志级别: INFO
+[2026-05-10 10:34:11] INFO in bootstrap: 启动时生成周期账单 1 笔
+[2026-05-10 10:34:12] INFO in core: 线上记账管理系统 启动成功
+[2026-05-10 10:34:12] INFO in core: 数据文件: D:\code\cash\data\data.json
+[2026-05-10 10:34:12] INFO in core: 日志级别: INFO
+[2026-05-10 10:51:16] INFO in core: 获取实时汇率: 1 HKD = 0.870657 CNY
+[2026-05-10 10:51:17] INFO in routes_transactions: 新增交易: income ￥87.07 - 奖金, 账户余额: 2991.07
+[2026-05-10 10:51:17] INFO in core: 获取实时汇率: 1 HKD = 0.870657 CNY
+[2026-05-10 10:51:17] INFO in routes_transactions: 新增交易: income ￥87.07 - 奖金, 账户余额: 2991.07
+[2026-05-10 10:51:23] WARNING in core: 汇率 API 请求失败: HTTPSConnectionPool(host='open.er-api.com', port=443): Read timed out.
+[2026-05-10 10:51:23] INFO in core: 使用默认汇率: 1 HKD = 0.93 CNY
+[2026-05-10 10:51:23] INFO in routes_transactions: 新增交易: income ￥93.0 - 奖金, 账户余额: 2997.00
+[2026-05-10 10:51:53] INFO in core: 获取实时汇率: 1 USD = 6.815924 CNY
+[2026-05-10 10:51:53] INFO in routes_transactions: 新增交易: income ￥681.59 - 奖金, 账户余额: 2208.75
+[2026-05-10 10:59:44] INFO in core: 线上记账管理系统 启动成功
+[2026-05-10 10:59:44] INFO in core: 数据文件: D:\code\cash\data\data.json
+[2026-05-10 10:59:44] INFO in core: 日志级别: INFO
+[2026-05-10 11:04:55] INFO in routes_transactions: 删除交易: ID=220, expense ￥400.0
+[2026-05-10 11:08:16] INFO in routes_transactions: 删除交易: ID=218, income ￥681.59
+[2026-05-10 11:09:54] INFO in routes_transactions: 新增交易: expense ￥2300.0 - 餐饮, 账户余额: -872.84
+[2026-05-10 11:25:10] INFO in routes_finance: 保存预算: user=7, month=2026-05, account=总账户, total=5000.0
+[2026-05-10 11:28:52] INFO in core: 线上记账管理系统 启动成功
+[2026-05-10 11:28:52] INFO in core: 数据文件: D:\code\cash\data\data.json
+[2026-05-10 11:28:52] INFO in core: 日志级别: INFO
+[2026-05-10 11:28:54] INFO in core: 线上记账管理系统 启动成功
+[2026-05-10 11:28:54] INFO in core: 数据文件: D:\code\cash\data\data.json
+[2026-05-10 11:28:54] INFO in core: 日志级别: INFO
+[2026-05-10 11:29:54] INFO in core: 获取实时汇率: 1 EUR = 8.017791 CNY
+[2026-05-10 11:29:54] INFO in routes_transactions: 新增交易: expense ￥8017.79 - 医疗, 账户余额: -8890.63
+[2026-05-10 11:29:54] INFO in core: 获取实时汇率: 1 EUR = 8.017791 CNY
+[2026-05-10 11:29:54] INFO in routes_transactions: 新增交易: expense ￥8017.79 - 医疗, 账户余额: -8890.63
+[2026-05-10 11:38:41] INFO in core: 线上记账管理系统 启动成功
+[2026-05-10 11:38:41] INFO in core: 数据文件: D:\code\cash\data\data.json
+[2026-05-10 11:38:41] INFO in core: 日志级别: INFO
+[2026-05-10 11:59:01] INFO in core: 线上记账管理系统 启动成功
+[2026-05-10 11:59:01] INFO in core: 数据文件: D:\code\cash\data\data.json
+[2026-05-10 11:59:01] INFO in core: 日志级别: INFO
+[2026-05-10 12:00:16] INFO in core: 线上记账管理系统 启动成功
+[2026-05-10 12:00:16] INFO in core: 数据文件: D:\code\cash\data\data.json
+[2026-05-10 12:00:16] INFO in core: 日志级别: INFO
+[2026-05-10 12:00:17] INFO in core: 线上记账管理系统 启动成功
+[2026-05-10 12:00:17] INFO in core: 数据文件: D:\code\cash\data\data.json
+[2026-05-10 12:00:17] INFO in core: 日志级别: INFO
+[2026-05-10 12:03:47] INFO in routes_transactions: 新增交易: income ￥99.0 - 工资, 账户余额: 99.00
+[2026-05-10 12:08:14] INFO in core: 线上记账管理系统 启动成功
+[2026-05-10 12:08:14] INFO in core: 数据文件: D:\code\cash\data\data.json
+[2026-05-10 12:08:14] INFO in core: 日志级别: INFO
+[2026-05-10 12:19:20] INFO in routes_transactions: 新增交易: expense ￥100.0 - 餐饮, 账户余额: -90.00
+[2026-05-10 12:23:49] INFO in core: 线上记账管理系统 启动成功
+[2026-05-10 12:23:49] INFO in core: 数据文件: D:\code\cash\data\data.json
+[2026-05-10 12:23:49] INFO in core: 日志级别: INFO
+[2026-05-10 12:24:22] INFO in core: 线上记账管理系统 启动成功
+[2026-05-10 12:24:22] INFO in core: 数据文件: D:\code\cash\data\data.json
+[2026-05-10 12:24:22] INFO in core: 日志级别: INFO
+[2026-05-10 12:24:24] INFO in core: 线上记账管理系统 启动成功
+[2026-05-10 12:24:24] INFO in core: 数据文件: D:\code\cash\data\data.json
+[2026-05-10 12:24:24] INFO in core: 日志级别: INFO
+[2026-05-10 12:24:41] INFO in core: 线上记账管理系统 启动成功
+[2026-05-10 12:24:41] INFO in core: 数据文件: D:\code\cash\data\data.json
+[2026-05-10 12:24:41] INFO in core: 日志级别: INFO
+[2026-05-10 12:24:42] INFO in core: 线上记账管理系统 启动成功
+[2026-05-10 12:24:42] INFO in core: 数据文件: D:\code\cash\data\data.json
+[2026-05-10 12:24:42] INFO in core: 日志级别: INFO
+[2026-05-10 12:24:58] INFO in core: 线上记账管理系统 启动成功
+[2026-05-10 12:24:58] INFO in core: 数据文件: D:\code\cash\data\data.json
+[2026-05-10 12:24:58] INFO in core: 日志级别: INFO
+[2026-05-10 12:25:00] INFO in core: 线上记账管理系统 启动成功
+[2026-05-10 12:25:00] INFO in core: 数据文件: D:\code\cash\data\data.json
+[2026-05-10 12:25:00] INFO in core: 日志级别: INFO
+[2026-05-10 13:01:22] INFO in core: 线上记账管理系统 启动成功
+[2026-05-10 13:01:22] INFO in core: 数据文件: D:\code\cash\data\data.json
+[2026-05-10 13:01:22] INFO in core: 日志级别: INFO
+[2026-05-10 13:01:23] INFO in core: 线上记账管理系统 启动成功
+[2026-05-10 13:01:23] INFO in core: 数据文件: D:\code\cash\data\data.json
+[2026-05-10 13:01:23] INFO in core: 日志级别: INFO
+[2026-05-10 13:03:52] INFO in core: 线上记账管理系统 启动成功
+[2026-05-10 13:03:52] INFO in core: 数据文件: D:\code\cash\data\data.json
+[2026-05-10 13:03:52] INFO in core: 日志级别: INFO
+[2026-05-10 13:04:52] INFO in core: 线上记账管理系统 启动成功
+[2026-05-10 13:04:52] INFO in core: 数据文件: D:\code\cash\data\data.json
+[2026-05-10 13:04:52] INFO in core: 日志级别: INFO
+[2026-05-10 13:09:16] INFO in core: 线上记账管理系统 启动成功
+[2026-05-10 13:09:16] INFO in core: 数据文件: D:\code\cash\data\data.json
+[2026-05-10 13:09:16] INFO in core: 日志级别: INFO
+[2026-05-10 13:09:36] INFO in core: 线上记账管理系统 启动成功
+[2026-05-10 13:09:36] INFO in core: 数据文件: D:\code\cash\data\data.json
+[2026-05-10 13:09:36] INFO in core: 日志级别: INFO
+[2026-05-10 13:09:56] INFO in core: 线上记账管理系统 启动成功
+[2026-05-10 13:09:56] INFO in core: 数据文件: D:\code\cash\data\data.json
+[2026-05-10 13:09:56] INFO in core: 日志级别: INFO
+[2026-05-10 13:10:21] INFO in core: 线上记账管理系统 启动成功
+[2026-05-10 13:10:21] INFO in core: 数据文件: D:\code\cash\data\data.json
+[2026-05-10 13:10:21] INFO in core: 日志级别: INFO
+[2026-05-10 13:10:45] INFO in core: 线上记账管理系统 启动成功
+[2026-05-10 13:10:45] INFO in core: 数据文件: D:\code\cash\data\data.json
+[2026-05-10 13:10:45] INFO in core: 日志级别: INFO
+[2026-05-10 13:12:52] INFO in core: 线上记账管理系统 启动成功
+[2026-05-10 13:12:52] INFO in core: 数据文件: D:\code\cash\data\data.json
+[2026-05-10 13:12:52] INFO in core: 日志级别: INFO
+[2026-05-10 13:15:39] INFO in core: 线上记账管理系统 启动成功
+[2026-05-10 13:15:39] INFO in core: 数据文件: D:\code\cash\data\data.json
+[2026-05-10 13:15:39] INFO in core: 日志级别: INFO
+[2026-05-10 13:18:33] INFO in core: 线上记账管理系统 启动成功
+[2026-05-10 13:18:33] INFO in core: 数据文件: D:\code\cash\data\data.json
+[2026-05-10 13:18:33] INFO in core: 日志级别: INFO
+[2026-05-10 13:21:54] INFO in core: 线上记账管理系统 启动成功
+[2026-05-10 13:21:54] INFO in core: 数据文件: D:\code\cash\data\data.json
+[2026-05-10 13:21:54] INFO in core: 日志级别: INFO
+[2026-05-10 13:21:56] INFO in core: 线上记账管理系统 启动成功
+[2026-05-10 13:21:56] INFO in core: 数据文件: D:\code\cash\data\data.json
+[2026-05-10 13:21:56] INFO in core: 日志级别: INFO
+[2026-05-10 13:22:10] ERROR in routes_ledgers: 切换账本失败: cannot import name 'set_token_active_ledger' from 'cash_app.routes_miniapp' (D:\code\cash\cash_app\routes_miniapp.py)
+[2026-05-10 13:22:13] ERROR in routes_ledgers: 切换账本失败: cannot import name 'set_token_active_ledger' from 'cash_app.routes_miniapp' (D:\code\cash\cash_app\routes_miniapp.py)
+[2026-05-10 13:22:15] ERROR in routes_ledgers: 切换账本失败: cannot import name 'set_token_active_ledger' from 'cash_app.routes_miniapp' (D:\code\cash\cash_app\routes_miniapp.py)
+[2026-05-10 13:23:25] INFO in core: 线上记账管理系统 启动成功
+[2026-05-10 13:23:25] INFO in core: 数据文件: D:\code\cash\data\data.json
+[2026-05-10 13:23:25] INFO in core: 日志级别: INFO
+[2026-05-10 13:23:45] INFO in core: 线上记账管理系统 启动成功
+[2026-05-10 13:23:45] INFO in core: 数据文件: D:\code\cash\data\data.json
+[2026-05-10 13:23:45] INFO in core: 日志级别: INFO
+[2026-05-10 13:24:01] INFO in core: 线上记账管理系统 启动成功
+[2026-05-10 13:24:01] INFO in core: 数据文件: D:\code\cash\data\data.json
+[2026-05-10 13:24:01] INFO in core: 日志级别: INFO
+[2026-05-10 13:24:49] INFO in core: 线上记账管理系统 启动成功
+[2026-05-10 13:24:49] INFO in core: 数据文件: D:\code\cash\data\data.json
+[2026-05-10 13:24:49] INFO in core: 日志级别: INFO
+[2026-05-10 13:25:32] INFO in core: 线上记账管理系统 启动成功
+[2026-05-10 13:25:32] INFO in core: 数据文件: D:\code\cash\data\data.json
+[2026-05-10 13:25:32] INFO in core: 日志级别: INFO
+[2026-05-10 13:25:34] INFO in core: 线上记账管理系统 启动成功
+[2026-05-10 13:25:34] INFO in core: 数据文件: D:\code\cash\data\data.json
+[2026-05-10 13:25:34] INFO in core: 日志级别: INFO
+[2026-05-10 13:27:47] INFO in core: 线上记账管理系统 启动成功
+[2026-05-10 13:27:47] INFO in core: 数据文件: D:\code\cash\data\data.json
+[2026-05-10 13:27:47] INFO in core: 日志级别: INFO
+[2026-05-10 13:28:48] INFO in core: 线上记账管理系统 启动成功
+[2026-05-10 13:28:48] INFO in core: 数据文件: D:\code\cash\data\data.json
+[2026-05-10 13:28:48] INFO in core: 日志级别: INFO
+[2026-05-10 13:29:54] INFO in core: 线上记账管理系统 启动成功
+[2026-05-10 13:29:54] INFO in core: 数据文件: D:\code\cash\data\data.json
+[2026-05-10 13:29:54] INFO in core: 日志级别: INFO
+[2026-05-10 13:29:56] INFO in core: 线上记账管理系统 启动成功
+[2026-05-10 13:29:56] INFO in core: 数据文件: D:\code\cash\data\data.json
+[2026-05-10 13:29:56] INFO in core: 日志级别: INFO
+[2026-05-10 13:32:10] INFO in core: 线上记账管理系统 启动成功
+[2026-05-10 13:32:10] INFO in core: 数据文件: D:\code\cash\data\data.json
+[2026-05-10 13:32:10] INFO in core: 日志级别: INFO
+[2026-05-10 13:32:36] INFO in core: 线上记账管理系统 启动成功
+[2026-05-10 13:32:36] INFO in core: 数据文件: D:\code\cash\data\data.json
+[2026-05-10 13:32:36] INFO in core: 日志级别: INFO
+[2026-05-10 13:41:05] INFO in core: 线上记账管理系统 启动成功
+[2026-05-10 13:41:05] INFO in core: 数据文件: D:\code\cash\data\data.json
+[2026-05-10 13:41:05] INFO in core: 日志级别: INFO
+[2026-05-10 13:41:07] INFO in core: 线上记账管理系统 启动成功
+[2026-05-10 13:41:07] INFO in core: 数据文件: D:\code\cash\data\data.json
+[2026-05-10 13:41:07] INFO in core: 日志级别: INFO
+[2026-05-10 13:45:25] INFO in core: 线上记账管理系统 启动成功
+[2026-05-10 13:45:25] INFO in core: 数据文件: D:\code\cash\data\data.json
+[2026-05-10 13:45:25] INFO in core: 日志级别: INFO
+[2026-05-10 13:45:27] INFO in core: 线上记账管理系统 启动成功
+[2026-05-10 13:45:27] INFO in core: 数据文件: D:\code\cash\data\data.json
+[2026-05-10 13:45:27] INFO in core: 日志级别: INFO
+[2026-05-10 13:47:47] INFO in core: 线上记账管理系统 启动成功
+[2026-05-10 13:47:47] INFO in core: 数据文件: D:\code\cash\data\data.json
+[2026-05-10 13:47:47] INFO in core: 日志级别: INFO
+[2026-05-10 13:53:51] INFO in core: 线上记账管理系统 启动成功
+[2026-05-10 13:53:51] INFO in core: 数据文件: D:\code\cash\data\data.json
+[2026-05-10 13:53:51] INFO in core: 日志级别: INFO
+[2026-05-10 13:54:12] INFO in core: 线上记账管理系统 启动成功
+[2026-05-10 13:54:12] INFO in core: 数据文件: D:\code\cash\data\data.json
+[2026-05-10 13:54:12] INFO in core: 日志级别: INFO

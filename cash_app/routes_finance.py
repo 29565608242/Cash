@@ -8,7 +8,7 @@ from flask import jsonify, request, send_file, session
 
 from .app_state import app, db
 from .auth import login_required, require_ledger_access, get_current_ledger_id
-from .models import Account, Budget, BudgetCategoryItem, Category, Loan, MoneyChangeLog, RecurringRule, Transaction, User
+from .models import Account, Budget, BudgetCategoryItem, Category, Ledger, Loan, MoneyChangeLog, RecurringRule, Transaction, User
 from .support import log_money_change
 
 def get_loan_base_query():
@@ -1396,7 +1396,9 @@ def get_report(period):
             "income": income,
             "expense": expense,
             "net": income - expense,
-            "count": len(transactions)
+            "count": len(transactions),
+            "current_ledger_id": current_ledger_id,
+            "current_ledger_name": Ledger.query.get(current_ledger_id).name if current_ledger_id else None
         })
     except Exception as e:
         app.logger.error(f"获取报表失败: {e}")

@@ -145,19 +145,19 @@
     "color": "#9CA3AF",
     "selectedColor": "#4361EE",
     "backgroundColor": "#FFFFFF",
-    "borderStyle": "black",
+    "borderStyle": "white",
     "list": [
       {
         "pagePath": "pages/index/index",
-        "text": "首页"
+        "text": "📊 首页"
       },
       {
         "pagePath": "pages/reports/index",
-        "text": "流水报表"
+        "text": "📋 流水报表"
       },
       {
         "pagePath": "pages/profile/index",
-        "text": "我的"
+        "text": "👤 我的"
       }
     ]
   }
