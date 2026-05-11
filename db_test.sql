@@ -1,7 +1,11 @@
 -- ============================================================
--- 线上记账系统 - 完整数据库初始化脚本
+-- 线上记账系统 - 完整数据库初始化脚本（v2.0）
 -- 说明: 应用启动时会自动通过 SQLAlchemy 执行 db.create_all()
 --       此文件仅作为数据库结构的参考和手动初始化使用
+-- 共 15 张表：users, categories, accounts, transactions,
+--   budgets, budget_category_items, export_tasks, file_uploads,
+--   ledgers, ledger_members, invite_codes, loans, ai_analysis,
+--   recurring_rules, money_change_logs
 -- ============================================================
 
 SET NAMES utf8mb4;

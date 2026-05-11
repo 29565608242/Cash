@@ -4,11 +4,12 @@
 
 ## 技术栈
 
-- **后端**: Flask 3.0 + SQLAlchemy
-- **数据库**: MySQL 8.0+
+- **后端**: Flask 3.0 + Flask-SQLAlchemy
+- **数据库**: MySQL 8.0+ (PyMySQL)
 - **前端**: Jinja2 + Bootstrap 5 + ECharts 5
-- **数据处理**: openpyxl, xlrd
+- **数据处理**: openpyxl, chardet
 - **AI 辅助**: DeepSeek API
+- **小程序**: uni-app (微信小程序/H5)
 
 ## 项目结构
 
@@ -18,6 +19,7 @@
 ├── config.py                    # 配置管理
 ├── db_test.sql                  # 数据库初始化脚本（参考用）
 ├── requirements.txt
+├── miniprogram/                 # uni-app 小程序
 ├── cash_app/                    # 核心应用包
 │   ├── __init__.py
 │   ├── app_state.py             # Flask/SQLAlchemy 实例
@@ -26,6 +28,7 @@
 │   ├── routes_transactions.py   # 交易/报销/用户管理 API
 │   ├── routes_finance.py        # 财务路由（预算/借贷/周期账单）
 │   ├── routes_ledgers.py        # 多账本路由
+│   ├── routes_miniapp.py        # 小程序 API
 │   ├── auth.py                  # 认证与权限
 │   ├── core.py                  # 核心工具函数
 │   ├── support.py               # 查询过滤/余额计算
@@ -115,6 +118,32 @@ python run.py        # 开发模式，默认 http://localhost:8080
 - **资金变动日志**: 完整的资金操作审计追踪
 - **数据备份**: 定期自动备份
 
+## miniprogram (uni-app 小程序)
+
+小程序基于 uni-app 开发，位于 `miniprogram/` 目录，对接 Flask 后端 API。
+
+### 小程序页面
+
+- **认证**: 登录、注册
+- **首页看板**: 收支概览、图表
+- **交易管理**: 交易列表、添加、详情、编辑
+- **账户管理**: 多账户查看
+- **账本与成员**: 账本切换、成员管理
+- **预算管理**: 预算设定与进度跟踪
+- **借贷管理**: 借入/借出记录
+- **报销管理**: 报销核销流程
+- **周期账单**: 周期规则管理
+- **报表统计**: 分类分布、月度趋势
+- **智能记账**: 自然语言记账、AI 分析
+- **个人中心**: 资料修改、密码变更
+
+### 联调步骤
+
+1. 启动 Flask 后端（默认 `http://127.0.0.1:8080`）
+2. 用 HBuilderX 导入 `miniprogram/`
+3. 运行到微信开发者工具或 Web 预览进行调试
+4. 如果后端地址不同，修改 `miniprogram/services/api.js` 中的 `BASE_URL`
+
 ## 环境变量
 
 | 变量 | 默认值 | 说明 |
@@ -125,6 +154,10 @@ python run.py        # 开发模式，默认 http://localhost:8080
 | SECRET_KEY | dev-secret-key-... | 会话密钥 |
 | MAX_TRANSACTIONS_DISPLAY | 10000 | 最大显示条数 |
 | DEEPSEEK_API_KEY | - | AI 记账 API 密钥 |
+| DEEPSEEK_BASE_URL | https://api.deepseek.com | DeepSeek API 地址 |
+| DEEPSEEK_MODEL | deepseek-v4-flash | DeepSeek 模型名称 |
+| BACKUP_ENABLED | true | 是否启用自动备份 |
+| SMTP_SERVER | smtp.qq.com | 邮件服务器 |
 
 ## 数据库说明
 

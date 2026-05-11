@@ -26,19 +26,7 @@ app.jinja_env.auto_reload = True
 app.secret_key = config.SECRET_KEY
 DATA_FILE = config.DATA_FILE_PATH
 
-# H5 联调跨域支持（开发环境）
-CORS(
-    app,
-    resources={r"/api/*": {"origins": [
-        "http://localhost:8090",
-        "http://127.0.0.1:8090",
-        "http://localhost:8081",
-        "http://127.0.0.1:8081",
-    ]}},
-    supports_credentials=True,
-    allow_headers=["Content-Type", "Authorization"],
-    methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-)
+# 跨域支持
+CORS(app, supports_credentials=True)
 
 db = SQLAlchemy(app)
-
