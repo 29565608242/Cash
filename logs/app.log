@@ -244,3 +244,11 @@
 [2026-05-10 13:54:12] INFO in core: 线上记账管理系统 启动成功
 [2026-05-10 13:54:12] INFO in core: 数据文件: D:\code\cash\data\data.json
 [2026-05-10 13:54:12] INFO in core: 日志级别: INFO
+[2026-05-14 09:50:41] INFO in core: 线上记账管理系统 启动成功
+[2026-05-14 09:50:41] INFO in core: 数据文件: D:\code\cash\data\data.json
+[2026-05-14 09:50:41] INFO in core: 日志级别: INFO
+[2026-05-14 09:50:43] INFO in bootstrap: 启动时生成周期账单 1 笔
+[2026-05-14 09:50:44] INFO in core: 线上记账管理系统 启动成功
+[2026-05-14 09:50:44] INFO in core: 数据文件: D:\code\cash\data\data.json
+[2026-05-14 09:50:44] INFO in core: 日志级别: INFO
+[2026-05-14 09:50:45] INFO in bootstrap: 启动时生成周期账单 1 笔
