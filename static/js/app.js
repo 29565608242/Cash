@@ -1021,7 +1021,7 @@ async function openMemberModal(ledgerId) {
                 </div>
             </div>
         </div>`;
-        data.members.forEach(m => {
+        data.members.filter(m => m.user_id !== data.owner.user_id).forEach(m => {
             const isSelf = m.user_id === window.activeUserId;
             html += `
             <div class="member-row">

@@ -110,6 +110,7 @@ def handle_transactions():
                     "reimbursement_status": t.reimbursement_status or 'none',
                     "reimbursed_amount": float(t.reimbursed_amount) if t.reimbursed_amount else 0,
                     "write_off_id": t.write_off_id,
+                    "ledger_id": t.ledger_id,
                     "user_id": t.user_id,
                     "username": t.user.username if t.user else None,
                     "payer_user_id": t.payer_user_id,

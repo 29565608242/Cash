@@ -2667,6 +2667,7 @@
                             <button class="period-tab active" data-days="3"
                                 onclick="changeDashboardDays(3)">近3日</button>
                             <button class="period-tab" data-days="7" onclick="changeDashboardDays(7)">近7日</button>
+                            <button class="period-tab" data-days="30" onclick="changeDashboardDays(30)">近1月</button>
                         </div>
                     </div>
 
@@ -3348,6 +3349,11 @@
                     }
                 } else {
                     // 切换到个人模式
+                    try {
+                        await fetch('/api/ledgers/personal', { method: 'POST' });
+                    } catch (e) {
+                        console.error('切换个人模式失败:', e);
+                    }
                     ledgerMemberCache = [{
                         user_id: window.activeUserId,
                         username: "{{ username }}"
@@ -3355,7 +3361,9 @@
                     showNotification('已切换到个人模式', 'info');
                 }
                 // 重新加载数据
-                loadData();
+                await loadData();
+                await loadAccounts();
+                await loadBudget();
             }
 
             // 更新用户信息
@@ -5518,6 +5526,7 @@
                                 + '<div class="transaction-info">'
                                 + '<h4>' + escapeHtml(tx.category) + reimbBadge + '</h4>'
                                 + '<p>' + escapeHtml(tx.date || '') + (tx.time ? ' ' + tx.time : '') + ' · ' + escapeHtml(tx.account_name || '') + (tx.remark ? ' · ' + escapeHtml(tx.remark) : '') + '</p>'
+                                + (tx.split_details && tx.split_details.length > 0 ? '<p style="font-size:0.8rem;color:#888;margin-top:2px;">👥 ' + tx.split_details.map(s => escapeHtml(s.username) + ' ¥' + (s.amount || 0).toFixed(2)).join('、') + '</p>' : '')
                                 + '<p style="font-size:0.8rem;color:#999;"><span style="display:inline-block;padding:1px 6px;border-radius:3px;color:white;font-size:0.7rem;background:' + label.color + ';">' + label.text + '</span> ' + logTime + '</p>'
                                 + '</div></div>'
                                 + '<div class="transaction-amount ' + (isIncome ? 'transaction-income' : 'transaction-expense') + '" style="display:flex;flex-direction:column;align-items:flex-end;gap:4px;">'
@@ -5597,6 +5606,24 @@
 
                 document.getElementById('quickCurrency').value = tx.currency || 'CNY';
                 updateCurrencyHint(tx.currency || 'CNY');
+
+                // 恢复分摊数据（加载账本成员、渲染复选框、设置付款人和勾选状态）
+                document.getElementById('quickAmount').oninput = updateSplitAmountHint;
+                loadCurrentLedgerMembers().then(() => {
+                    renderSplitMembers();
+                    if (tx.payer_user_id) {
+                        document.getElementById('quickPayerUser').value = tx.payer_user_id;
+                    }
+                    if (tx.split_details && tx.split_details.length > 0) {
+                        tx.split_details.forEach(s => {
+                            const checkbox = document.querySelector(`.split-member-check[data-user-id="${s.user_id}"]`);
+                            const amountInput = document.querySelector(`.split-amount-input[data-user-id="${s.user_id}"]`);
+                            if (checkbox) checkbox.checked = true;
+                            if (amountInput) amountInput.value = s.amount || 0;
+                        });
+                        updateSplitAmountHint();
+                    }
+                });
 
                 flowEditId = txId;
                 document.getElementById('submitBtn').textContent = '保存修改';

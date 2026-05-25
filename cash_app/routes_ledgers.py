@@ -33,7 +33,7 @@ def list_ledgers():
                     'owner_id': ledger.owner_id,
                     'owner_name': ledger.owner.username if ledger.owner else None,
                     'role': role,
-                    'member_count': member_count + 1,  # +1 for owner
+                    'member_count': member_count,
                     'created_at': ledger.created_at.isoformat() if ledger.created_at else None,
                 })
         return jsonify({'success': True, 'ledgers': result})
@@ -84,7 +84,7 @@ def get_ledger(ledger_id):
             'id': ledger.id, 'name': ledger.name, 'description': ledger.description,
             'currency': ledger.currency, 'owner_id': ledger.owner_id,
             'owner_name': ledger.owner.username if ledger.owner else None,
-            'role': role, 'member_count': member_count + 1,
+            'role': role, 'member_count': member_count,
             'created_at': ledger.created_at.isoformat() if ledger.created_at else None,
         }})
     except Exception as e:
@@ -160,6 +160,18 @@ def switch_ledger(ledger_id):
     except Exception as e:
         app.logger.error(f"切换账本失败: {e}")
         return jsonify({'success': False, 'message': '切换账本失败'}), 500
+
+
+@app.route('/api/ledgers/personal', methods=['POST'])
+@login_required
+def switch_to_personal():
+    """切换到个人模式"""
+    try:
+        session.pop('active_ledger_id', None)
+        return jsonify({'success': True, 'message': '已切换到个人模式'})
+    except Exception as e:
+        app.logger.error(f"切换个人模式失败: {e}")
+        return jsonify({'success': False, 'message': '切换失败'}), 500
 
 
 # ==================== 账本成员管理 API ====================
