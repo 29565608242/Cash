@@ -17,5 +17,12 @@
       "urlCheck": false,
       "es6": true
     }
+  },
+  "mp-alipay": {
+    "appid": "",
+    "setting": {
+      "urlCheck": false,
+      "es6": true
+    }
   }
 }

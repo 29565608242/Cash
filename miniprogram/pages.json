@@ -16,15 +16,29 @@
       }
     },
     {
-      "path": "pages/index/index",
+      "path": "pages/ledgers/index",
       "style": {
-        "navigationBarTitleText": "首页"
+        "navigationBarTitleText": "账本列表"
       }
     },
     {
       "path": "pages/transaction-add/index",
       "style": {
-        "navigationBarTitleText": "记一笔"
+        "navigationBarTitleText": "开始记账",
+        "navigationStyle": "custom"
+      }
+    },
+    {
+      "path": "pages/profile/index",
+      "style": {
+        "navigationBarTitleText": "个人中心",
+        "navigationStyle": "custom"
+      }
+    },
+    {
+      "path": "pages/index/index",
+      "style": {
+        "navigationBarTitleText": "账本概览"
       }
     },
     {
@@ -49,12 +63,6 @@
       "path": "pages/accounts/index",
       "style": {
         "navigationBarTitleText": "账户管理"
-      }
-    },
-    {
-      "path": "pages/ledgers/index",
-      "style": {
-        "navigationBarTitleText": "账本管理"
       }
     },
     {
@@ -128,36 +136,30 @@
       "style": {
         "navigationBarTitleText": "关于"
       }
-    },
-    {
-      "path": "pages/profile/index",
-      "style": {
-        "navigationBarTitleText": "我的"
-      }
     }
   ],
   "globalStyle": {
     "navigationBarTextStyle": "black",
     "navigationBarBackgroundColor": "#FFFFFF",
-    "backgroundColor": "#F3F4F6"
+    "backgroundColor": "#F3F6F8"
   },
   "tabBar": {
-    "color": "#9CA3AF",
-    "selectedColor": "#4361EE",
+    "color": "#8A98A8",
+    "selectedColor": "#16B7D7",
     "backgroundColor": "#FFFFFF",
     "borderStyle": "white",
     "list": [
       {
-        "pagePath": "pages/index/index",
-        "text": "📊 首页"
+        "pagePath": "pages/ledgers/index",
+        "text": "账本列表"
       },
       {
-        "pagePath": "pages/reports/index",
-        "text": "📋 流水报表"
+        "pagePath": "pages/transaction-add/index",
+        "text": "开始记账"
       },
       {
         "pagePath": "pages/profile/index",
-        "text": "👤 我的"
+        "text": "个人中心"
       }
     ]
   }

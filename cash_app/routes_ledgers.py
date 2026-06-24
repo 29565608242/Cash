@@ -5,8 +5,8 @@ from datetime import datetime, timedelta
 from flask import jsonify, session, request
 
 from .app_state import app, db
-from .auth import login_required, require_ledger_access, get_user_ledger_role
-from .models import Account, Budget, InviteCode, Ledger, LedgerMember, Transaction, User
+from .auth import login_required, require_ledger_access, get_current_ledger_id, get_user_ledger_role
+from .models import Account, Budget, Category, InviteCode, Ledger, LedgerMember, Transaction, User
 from .support import get_balance
 
 @app.route('/api/ledgers', methods=['GET'])
@@ -15,16 +15,42 @@ def list_ledgers():
     """列出当前用户有权限的所有账本"""
     try:
         user_id = session.get('user_id')
+        current_ledger_id = get_current_ledger_id()
+        month = datetime.now().strftime('%Y-%m')
         owned = Ledger.query.filter_by(owner_id=user_id, is_active=True).all()
         member_ledger_ids = [m.ledger_id for m in LedgerMember.query.filter_by(user_id=user_id).all()]
         member_ledgers = Ledger.query.filter(Ledger.id.in_(member_ledger_ids), Ledger.is_active == True).all() if member_ledger_ids else []
         seen = set()
         result = []
+        stats_filter = db.or_(Transaction.include_in_stats == True, Transaction.include_in_stats.is_(None))
         for ledger in owned + member_ledgers:
             if ledger.id not in seen:
                 seen.add(ledger.id)
                 role = get_user_ledger_role(ledger.id, user_id)
                 member_count = LedgerMember.query.filter_by(ledger_id=ledger.id).count()
+                income = db.session.query(db.func.sum(Transaction.amount)).filter(
+                    Transaction.ledger_id == ledger.id,
+                    Transaction.type == 'income',
+                    Transaction.date.startswith(month),
+                    stats_filter
+                ).scalar() or 0
+                expense = db.session.query(db.func.sum(Transaction.amount)).filter(
+                    Transaction.ledger_id == ledger.id,
+                    Transaction.type == 'expense',
+                    Transaction.date.startswith(month),
+                    stats_filter
+                ).scalar() or 0
+                balance_income = db.session.query(db.func.sum(Transaction.amount)).filter(
+                    Transaction.ledger_id == ledger.id,
+                    Transaction.type == 'income',
+                    stats_filter
+                ).scalar() or 0
+                balance_expense = db.session.query(db.func.sum(Transaction.amount)).filter(
+                    Transaction.ledger_id == ledger.id,
+                    Transaction.type == 'expense',
+                    stats_filter
+                ).scalar() or 0
+                members = LedgerMember.query.filter_by(ledger_id=ledger.id).limit(5).all()
                 result.append({
                     'id': ledger.id,
                     'name': ledger.name,
@@ -34,6 +60,19 @@ def list_ledgers():
                     'owner_name': ledger.owner.username if ledger.owner else None,
                     'role': role,
                     'member_count': member_count,
+                    'balance': float(balance_income) - float(balance_expense),
+                    'month_income': float(income),
+                    'month_expense': float(expense),
+                    'is_current': ledger.id == current_ledger_id,
+                    'members': [
+                        {
+                            'user_id': m.user_id,
+                            'username': m.user.username if m.user else '',
+                            'nickname': m.user.nickname if m.user else '',
+                            'avatar': m.user.avatar if m.user else '',
+                        }
+                        for m in members
+                    ],
                     'created_at': ledger.created_at.isoformat() if ledger.created_at else None,
                 })
         return jsonify({'success': True, 'ledgers': result})

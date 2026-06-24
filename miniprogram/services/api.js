@@ -1,6 +1,19 @@
 import { clearAuth, store } from '../store/index'
+import { appConfig } from '../config/index'
 
-const BASE_URL = 'http://127.0.0.1:8080'
+export const BASE_URL = appConfig.baseUrl
+
+function normalizePayload(data) {
+  if (!data) return {}
+  if (typeof data === 'string') {
+    try {
+      return JSON.parse(data)
+    } catch (error) {
+      return {}
+    }
+  }
+  return data
+}
 
 function request({ url, method = 'GET', data = null, auth = true, header = {} }) {
   return new Promise((resolve, reject) => {
@@ -20,17 +33,61 @@ function request({ url, method = 'GET', data = null, auth = true, header = {} })
       timeout: 15000,
       header: headers,
       success: (res) => {
+        const payload = normalizePayload(res.data)
+
         if (res.statusCode === 401) {
-          clearAuth()
-          uni.reLaunch({ url: '/pages/login/index' })
-          reject(new Error('登录已过期'))
+          if (auth) {
+            clearAuth()
+            uni.reLaunch({ url: '/pages/login/index' })
+          }
+          const fallback = auth ? '登录已过期' : '用户名或密码错误'
+          reject(new Error(payload.message || fallback))
           return
         }
-        const payload = res.data || {}
+
         if (payload.success === false) {
           reject(new Error(payload.message || '请求失败'))
           return
         }
+
+        resolve(payload)
+      },
+      fail: (err) => reject(err),
+    })
+  })
+}
+
+function upload({ url, filePath, name = 'file', formData = {}, auth = true, header = {} }) {
+  return new Promise((resolve, reject) => {
+    const headers = { ...header }
+    if (auth && store.state.token) {
+      headers.Authorization = `Bearer ${store.state.token}`
+    }
+
+    uni.uploadFile({
+      url: `${BASE_URL}${url}`,
+      filePath,
+      name,
+      formData,
+      header: headers,
+      success: (res) => {
+        const payload = normalizePayload(res.data)
+
+        if (res.statusCode === 401) {
+          if (auth) {
+            clearAuth()
+            uni.reLaunch({ url: '/pages/login/index' })
+          }
+          const fallback = auth ? '登录已过期' : '上传未授权'
+          reject(new Error(payload.message || fallback))
+          return
+        }
+
+        if (payload.success === false) {
+          reject(new Error(payload.message || '上传失败'))
+          return
+        }
+
         resolve(payload)
       },
       fail: (err) => reject(err),
@@ -40,6 +97,7 @@ function request({ url, method = 'GET', data = null, auth = true, header = {} })
 
 export const api = {
   request,
+  upload,
   get: (url, data, auth = true) => request({ url, method: 'GET', data, auth }),
   post: (url, data, auth = true) => request({ url, method: 'POST', data, auth }),
   put: (url, data, auth = true) => request({ url, method: 'PUT', data, auth }),
@@ -75,6 +133,11 @@ export const endpoints = {
   report: (period) => `/api/reports/${period}`,
   reportAdvanced: '/api/reports/advanced',
   moneyChangeLogs: '/api/money-change-logs',
+  importUpload: '/api/import/upload',
+  importConfirm: '/api/import/confirm',
+  exportCreate: '/api/export/create',
+  exportStatus: (taskId) => `/api/export/status/${taskId}`,
+  exportList: '/api/export/list',
   smartParse: '/api/smart/parse',
   smartConfirm: '/api/smart/confirm',
   smartAI: '/api/smart/deepseek-analysis',

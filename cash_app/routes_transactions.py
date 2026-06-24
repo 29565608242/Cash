@@ -6,8 +6,224 @@ from flask import jsonify, request, session
 from .app_state import app, config, db
 from .auth import login_required, admin_required, require_ledger_access, get_current_ledger_id
 from .core import CURRENCY_NAMES, get_exchange_rate
-from .models import Account, Budget, BudgetCategoryItem, Category, ExportTask, FileUpload, MoneyChangeLog, Transaction, User
+from .models import Account, Budget, BudgetCategoryItem, Category, ExportTask, FileUpload, MoneyChangeLog, Transaction, TransactionSplit, User
 from .support import filter_transactions_by_period_orm, get_balance, log_money_change
+
+
+def _bool_from_payload(value, default=True):
+    if value is None:
+        return default
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, (int, float)):
+        return bool(value)
+    if isinstance(value, str):
+        return value.strip().lower() not in ('0', 'false', 'no', 'off')
+    return default
+
+
+def _json_list(value):
+    if not value:
+        return []
+    if isinstance(value, list):
+        return value
+    try:
+        parsed = json.loads(value)
+        return parsed if isinstance(parsed, list) else []
+    except Exception:
+        return []
+
+
+def _normalize_attachments(value):
+    items = _json_list(value)
+    normalized = []
+    for item in items[:9]:
+        if isinstance(item, str):
+            normalized.append({'url': item})
+        elif isinstance(item, dict):
+            url = (item.get('url') or item.get('path') or '').strip()
+            if url:
+                normalized.append({
+                    'url': url,
+                    'name': (item.get('name') or '').strip(),
+                    'type': (item.get('type') or '').strip(),
+                })
+    return normalized
+
+
+def _normalize_splits(value):
+    splits = []
+    for item in _json_list(value):
+        try:
+            user_id = int(item.get('user_id'))
+            amount = float(item.get('amount', 0))
+        except (TypeError, ValueError):
+            continue
+        if user_id <= 0 or amount <= 0:
+            continue
+        splits.append({
+            'user_id': user_id,
+            'username': item.get('username') or '',
+            'amount': round(amount, 2),
+            'share_type': item.get('share_type') or 'equal',
+        })
+    return splits
+
+
+def _sync_transaction_splits(tx, split_details):
+    if not tx.id:
+        return
+    TransactionSplit.query.filter_by(transaction_id=tx.id).delete()
+    for item in split_details:
+        db.session.add(TransactionSplit(
+            transaction_id=tx.id,
+            user_id=item['user_id'],
+            amount=item['amount'],
+            share_type=item.get('share_type') or 'equal',
+        ))
+
+
+def _apply_transaction_extras(tx, payload, default_include=True):
+    business_type = payload.get('business_type') or tx.business_type or 'normal'
+    if business_type not in ('normal', 'transfer', 'prepay'):
+        business_type = 'normal'
+    tx.business_type = business_type
+
+    if 'include_in_stats' in payload:
+        tx.include_in_stats = _bool_from_payload(payload.get('include_in_stats'), default_include)
+    elif tx.include_in_stats is None:
+        tx.include_in_stats = default_include
+
+    if 'location_name' in payload:
+        tx.location_name = (payload.get('location_name') or '').strip() or None
+    if 'latitude' in payload:
+        try:
+            tx.latitude = float(payload.get('latitude')) if payload.get('latitude') not in (None, '') else None
+        except (TypeError, ValueError):
+            tx.latitude = None
+    if 'longitude' in payload:
+        try:
+            tx.longitude = float(payload.get('longitude')) if payload.get('longitude') not in (None, '') else None
+        except (TypeError, ValueError):
+            tx.longitude = None
+    if 'attachments' in payload:
+        attachments = _normalize_attachments(payload.get('attachments'))
+        tx.attachments = json.dumps(attachments, ensure_ascii=False) if attachments else None
+
+
+def _apply_account_effect(tx):
+    amount = float(tx.amount or 0)
+    account = Account.query.get(tx.account_id) if tx.account_id else None
+    if account:
+        if tx.type == 'income':
+            account.balance = float(account.balance) + amount
+        else:
+            account.balance = float(account.balance) - amount
+    if (tx.business_type or 'normal') == 'transfer' and tx.target_account_id:
+        target = Account.query.get(tx.target_account_id)
+        if target:
+            target.balance = float(target.balance) + amount
+
+
+def _rollback_account_effect(tx):
+    amount = float(tx.amount or 0)
+    account = Account.query.get(tx.account_id) if tx.account_id else None
+    if account:
+        if tx.type == 'income':
+            account.balance = float(account.balance) - amount
+        else:
+            account.balance = float(account.balance) + amount
+    if (tx.business_type or 'normal') == 'transfer' and tx.target_account_id:
+        target = Account.query.get(tx.target_account_id)
+        if target:
+            target.balance = float(target.balance) - amount
+
+
+def _rollback_account_snapshot(account_id, target_account_id, business_type, tx_type, amount):
+    account = Account.query.get(account_id) if account_id else None
+    if account:
+        if tx_type == 'income':
+            account.balance = float(account.balance) - amount
+        else:
+            account.balance = float(account.balance) + amount
+    if (business_type or 'normal') == 'transfer' and target_account_id:
+        target = Account.query.get(target_account_id)
+        if target:
+            target.balance = float(target.balance) - amount
+
+
+def serialize_transaction(tx):
+    split_details = _json_list(tx.split_details)
+    try:
+        split_items = tx.split_items.all()
+        if split_items:
+            split_details = [
+                {
+                    'user_id': item.user_id,
+                    'username': item.user.username if item.user else '',
+                    'amount': float(item.amount or 0),
+                    'share_type': item.share_type or 'equal',
+                    'is_settled': bool(item.is_settled),
+                }
+                for item in split_items
+            ]
+    except Exception:
+        pass
+
+    return {
+        "id": tx.id,
+        "type": tx.type,
+        "business_type": tx.business_type or 'normal',
+        "amount": float(tx.amount) if tx.amount else 0,
+        "category": tx.category,
+        "date": tx.date,
+        "time": tx.time,
+        "remark": tx.remark,
+        "account_id": tx.account_id,
+        "account_name": tx.account.name if tx.account else None,
+        "target_account_id": tx.target_account_id,
+        "target_account_name": tx.target_account.name if tx.target_account else None,
+        "currency": tx.currency or 'CNY',
+        "original_amount": float(tx.original_amount) if tx.original_amount else None,
+        "exchange_rate": float(tx.exchange_rate) if tx.exchange_rate else None,
+        "created_at": tx.created_at.isoformat() if tx.created_at else None,
+        "updated_at": tx.updated_at.isoformat() if tx.updated_at else None,
+        "reimbursement_status": tx.reimbursement_status or 'none',
+        "reimbursed_amount": float(tx.reimbursed_amount) if tx.reimbursed_amount else 0,
+        "write_off_id": tx.write_off_id,
+        "ledger_id": tx.ledger_id,
+        "user_id": tx.user_id,
+        "username": tx.user.username if tx.user else None,
+        "payer_user_id": tx.payer_user_id,
+        "payer_username": tx.payer_user.username if tx.payer_user else None,
+        "split_details": split_details,
+        "include_in_stats": bool(tx.include_in_stats if tx.include_in_stats is not None else True),
+        "location_name": tx.location_name or '',
+        "latitude": float(tx.latitude) if tx.latitude is not None else None,
+        "longitude": float(tx.longitude) if tx.longitude is not None else None,
+        "attachments": _json_list(tx.attachments),
+    }
+
+
+@app.route('/api/transactions/<int:transaction_id>', methods=['GET'])
+@login_required
+def get_transaction_detail(transaction_id):
+    tx = Transaction.query.get(transaction_id)
+    if not tx:
+        return jsonify({"success": False, "message": "未找到对应交易记录"}), 404
+
+    user_id = session.get('user_id')
+    is_admin = session.get('is_admin')
+    self_view = session.get('self_view', False)
+    if not (is_admin and not self_view):
+        if tx.ledger_id:
+            has_access, role, error = require_ledger_access(tx.ledger_id, 'viewer')
+            if not has_access:
+                return error
+        elif tx.user_id != user_id:
+            return jsonify({"success": False, "message": "无权限查看此记录"}), 403
+
+    return jsonify({"success": True, "transaction": serialize_transaction(tx)})
 
 @app.route('/api/transactions', methods=['GET', 'POST'])
 @login_required
@@ -91,32 +307,7 @@ def handle_transactions():
         balance = get_balance()
         return jsonify({
             "success": True,
-            "transactions": [
-                {
-                    "id": t.id,
-                    "type": t.type,
-                    "amount": float(t.amount) if t.amount else 0,
-                    "category": t.category,
-                    "date": t.date,
-                    "time": t.time,
-                    "remark": t.remark,
-                    "account_id": t.account_id,
-                    "account_name": t.account.name if t.account else None,
-                    "currency": t.currency or 'CNY',
-                    "original_amount": float(t.original_amount) if t.original_amount else None,
-                    "exchange_rate": float(t.exchange_rate) if t.exchange_rate else None,
-                    "created_at": t.created_at.isoformat() if t.created_at else None,
-                    "updated_at": t.updated_at.isoformat() if t.updated_at else None,
-                    "reimbursement_status": t.reimbursement_status or 'none',
-                    "reimbursed_amount": float(t.reimbursed_amount) if t.reimbursed_amount else 0,
-                    "write_off_id": t.write_off_id,
-                    "ledger_id": t.ledger_id,
-                    "user_id": t.user_id,
-                    "username": t.user.username if t.user else None,
-                    "payer_user_id": t.payer_user_id,
-                    "split_details": json.loads(t.split_details) if t.split_details else []
-                } for t in transactions
-            ],
+            "transactions": [serialize_transaction(t) for t in transactions],
             "balance": balance,
             "total": total,
             "page": page or 1,
@@ -136,7 +327,13 @@ def handle_transactions():
                     return error
 
             # 字段校验
+            business_type = transaction.get('business_type') or 'normal'
+            if business_type not in ('normal', 'transfer', 'prepay'):
+                business_type = 'normal'
+
             tx_type = transaction.get('type')
+            if business_type in ('transfer', 'prepay'):
+                tx_type = 'expense'
             if tx_type not in ['income', 'expense']:
                 return jsonify({"success": False, "message": "交易类型必须是 income 或 expense"}), 400
 
@@ -176,10 +373,14 @@ def handle_transactions():
 
             # 分类校验
             category_name = transaction.get('category', '').strip()
+            if business_type == 'transfer' and not category_name:
+                category_name = '转账'
+            if business_type == 'prepay' and not category_name:
+                category_name = '预交款'
             if not category_name:
                 return jsonify({"success": False, "message": "分类不能为空"}), 400
             category = Category.query.filter_by(name=category_name, type=tx_type).first()
-            if not category:
+            if not category and business_type == 'normal':
                 return jsonify({"success": False, "message": f"分类 '{category_name}' 不存在或类型不匹配"}), 400
 
             # 日期校验
@@ -228,7 +429,23 @@ def handle_transactions():
                     db.session.flush()
                 account_id = account.id
 
+            target_account_id = transaction.get('target_account_id')
+            if business_type == 'transfer':
+                try:
+                    target_account_id = int(target_account_id)
+                except (TypeError, ValueError):
+                    return jsonify({"success": False, "message": "转账必须选择转入账户"}), 400
+                if target_account_id == account_id:
+                    return jsonify({"success": False, "message": "转入账户不能与转出账户相同"}), 400
+                target_account = Account.query.filter_by(id=target_account_id).first()
+                if not target_account or (current_ledger_id and target_account.ledger_id != current_ledger_id):
+                    return jsonify({"success": False, "message": "转入账户不存在或不属于当前账本"}), 400
+            else:
+                target_account_id = None
+
             # 创建交易记录
+            split_details = _normalize_splits(transaction.get('split_details'))
+            include_default = business_type == 'normal'
             tx = Transaction(
                 type=tx_type,
                 amount=tx_amount,
@@ -244,17 +461,17 @@ def handle_transactions():
                 exchange_rate=exchange_rate,
                 reimbursement_status=transaction.get('reimbursement_status', 'none'),
                 payer_user_id=transaction.get('payer_user_id'),
-                split_details=json.dumps(transaction.get('split_details', []), ensure_ascii=False) if transaction.get('split_details') else None
+                split_details=json.dumps(split_details, ensure_ascii=False) if split_details else None,
+                business_type=business_type,
+                target_account_id=target_account_id,
+                include_in_stats=_bool_from_payload(transaction.get('include_in_stats'), include_default),
             )
+            _apply_transaction_extras(tx, transaction, default_include=include_default)
             db.session.add(tx)
 
-            # 更新账户余额
-            if tx_type == 'income':
-                account.balance = float(account.balance) + tx_amount
-            else:
-                account.balance = float(account.balance) - tx_amount
-
+            _apply_account_effect(tx)
             db.session.flush()
+            _sync_transaction_splits(tx, split_details)
 
             # 记录资金变动
             balance_before = float(account.balance) - (tx_amount if tx_type == 'income' else -tx_amount)
@@ -268,7 +485,7 @@ def handle_transactions():
                 balance_after=float(account.balance),
                 account_id=account_id,
                 ledger_id=current_ledger_id,
-                description=f'创建{"收入" if tx_type == "income" else "支出"} ￥{tx_amount:.2f} - {category_name}'
+                description=f'创建{business_type if business_type != "normal" else ("收入" if tx_type == "income" else "支出")} ￥{tx_amount:.2f} - {category_name}'
             )
 
             db.session.commit()
@@ -278,7 +495,7 @@ def handle_transactions():
 
             # 支出时检查预算
             budget_warnings = []
-            if tx_type == 'expense':
+            if tx_type == 'expense' and bool(tx.include_in_stats):
                 try:
                     month = tx_date[:7]
                     # 优先查找账户级预算，再查总账户预算
@@ -299,7 +516,8 @@ def handle_transactions():
                         total_amount = float(budget.total_amount)
                         expense_filter = [
                             Transaction.type == 'expense',
-                            Transaction.date.startswith(month)
+                            Transaction.date.startswith(month),
+                            db.or_(Transaction.include_in_stats == True, Transaction.include_in_stats.is_(None))
                         ]
                         if current_ledger_id:
                             expense_filter.append(Transaction.ledger_id == current_ledger_id)
@@ -334,7 +552,8 @@ def handle_transactions():
                             cat_exp_filter = [
                                 Transaction.type == 'expense',
                                 Transaction.category == cat_name,
-                                Transaction.date.startswith(month)
+                                Transaction.date.startswith(month),
+                                db.or_(Transaction.include_in_stats == True, Transaction.include_in_stats.is_(None))
                             ]
                             if current_ledger_id:
                                 cat_exp_filter.append(Transaction.ledger_id == current_ledger_id)
@@ -430,12 +649,7 @@ def delete_transaction(transaction_id):
                 return jsonify({"success": False, "message": "无权限删除此记录"}), 403
 
         # 回滚账户余额
-        account = Account.query.get(tx.account_id) if tx.account_id else None
-        if account:
-            if tx.type == 'income':
-                account.balance = float(account.balance) - float(tx.amount)
-            elif tx.type == 'expense':
-                account.balance = float(account.balance) + float(tx.amount)
+        _rollback_account_effect(tx)
 
         # 处理核销关联：删除已报销的支出时同步删除关联的收入
         if tx.type == 'expense' and tx.write_off_id:
@@ -474,7 +688,7 @@ def delete_transaction(transaction_id):
             amount_change=amt_change,
             account_id=tx.account_id,
             ledger_id=tx.ledger_id,
-            description=f'删除{"收入" if tx.type == "income" else "支出"} ￥{float(tx.amount):.2f} - {tx.category}'
+            description=f'删除{tx.business_type if (tx.business_type or "normal") != "normal" else ("收入" if tx.type == "income" else "支出")} ￥{float(tx.amount):.2f} - {tx.category}'
         )
 
         db.session.delete(tx)
@@ -518,15 +732,19 @@ def update_transaction(transaction_id):
         # 先回滚旧的账户余额影响
         old_type = tx.type
         old_amount = float(tx.amount)
-        account = Account.query.get(tx.account_id) if tx.account_id else None
-        if account:
-            if old_type == 'income':
-                account.balance = float(account.balance) - old_amount
-            else:
-                account.balance = float(account.balance) + old_amount
+        old_business_type = tx.business_type or 'normal'
+        old_account_id = tx.account_id
+        old_target_account_id = tx.target_account_id
 
         # 更新字段
+        new_business_type = update_data.get('business_type', old_business_type) or 'normal'
+        if new_business_type not in ('normal', 'transfer', 'prepay'):
+            new_business_type = 'normal'
+        tx.business_type = new_business_type
+
         new_type = update_data.get('type', old_type)
+        if new_business_type in ('transfer', 'prepay'):
+            new_type = 'expense'
         new_amount = old_amount
         if new_type not in ['income', 'expense']:
             return jsonify({"success": False, "message": "交易类型必须是 income 或 expense"}), 400
@@ -571,31 +789,61 @@ def update_transaction(transaction_id):
         if 'category' in update_data and update_data['category']:
             category_name = update_data['category'].strip()
             category = Category.query.filter_by(name=category_name, type=new_type).first()
-            if not category:
+            if not category and new_business_type == 'normal':
                 return jsonify({"success": False, "message": f"分类 '{category_name}' 不存在或类型不匹配"}), 400
             tx.category = category_name
+        elif new_business_type == 'transfer':
+            tx.category = tx.category or '转账'
+        elif new_business_type == 'prepay':
+            tx.category = tx.category or '预交款'
 
         if 'remark' in update_data:
             tx.remark = update_data['remark'].strip() if update_data['remark'] else ''
         if 'account_id' in update_data:
             new_account = Account.query.get(update_data['account_id'])
-            if new_account:
-                tx.account_id = update_data['account_id']
-                account = new_account
+            if not new_account:
+                return jsonify({"success": False, "message": "账户不存在"}), 400
+            if tx.ledger_id and new_account.ledger_id != tx.ledger_id:
+                return jsonify({"success": False, "message": "账户不属于当前账本"}), 400
+            if not tx.ledger_id and not (is_admin and not self_view) and new_account.user_id != user_id:
+                return jsonify({"success": False, "message": "无权限使用该账户"}), 403
+            tx.account_id = update_data['account_id']
+
+        if new_business_type == 'transfer':
+            try:
+                target_account_id = int(update_data.get('target_account_id') or tx.target_account_id)
+            except (TypeError, ValueError):
+                return jsonify({"success": False, "message": "转账必须选择转入账户"}), 400
+            if target_account_id == tx.account_id:
+                return jsonify({"success": False, "message": "转入账户不能与转出账户相同"}), 400
+            target_account = Account.query.get(target_account_id)
+            if not target_account or (tx.ledger_id and target_account.ledger_id != tx.ledger_id):
+                return jsonify({"success": False, "message": "转入账户不存在或不属于当前账本"}), 400
+            tx.target_account_id = target_account_id
+        elif 'target_account_id' in update_data or new_business_type != 'transfer':
+            tx.target_account_id = None
 
         if 'payer_user_id' in update_data:
             tx.payer_user_id = update_data['payer_user_id']
+        if 'reimbursement_status' in update_data:
+            new_status = update_data.get('reimbursement_status') or 'none'
+            if new_status not in ('none', 'pending', 'partial', 'reimbursed'):
+                return jsonify({"success": False, "message": "无效的报销状态"}), 400
+            if new_type != 'expense':
+                new_status = 'none'
+            tx.reimbursement_status = new_status
         if 'split_details' in update_data:
-            tx.split_details = json.dumps(update_data['split_details'], ensure_ascii=False) if update_data['split_details'] else None
+            split_details = _normalize_splits(update_data.get('split_details'))
+            tx.split_details = json.dumps(split_details, ensure_ascii=False) if split_details else None
+            _sync_transaction_splits(tx, split_details)
+
+        _apply_transaction_extras(tx, update_data, default_include=(new_business_type == 'normal'))
 
         tx.updated_at = datetime.now()
 
         # 应用新余额影响
-        if account:
-            if new_type == 'income':
-                account.balance = float(account.balance) + new_amount
-            else:
-                account.balance = float(account.balance) - new_amount
+        _rollback_account_snapshot(old_account_id, old_target_account_id, old_business_type, old_type, old_amount)
+        _apply_account_effect(tx)
 
         # 记录资金变动
         old_effect = old_amount if old_type == 'income' else -old_amount
@@ -607,9 +855,9 @@ def update_transaction(transaction_id):
             entity_type='transaction',
             entity_id=transaction_id,
             amount_change=net_change,
-            account_id=account.id if account else tx.account_id,
+            account_id=tx.account_id,
             ledger_id=tx.ledger_id,
-            description=f'更新交易: {old_type}￥{old_amount:.2f} → {new_type}￥{new_amount:.2f} - {tx.category}'
+            description=f'更新交易: {old_business_type}/{old_type}￥{old_amount:.2f} → {new_business_type}/{new_type}￥{new_amount:.2f} - {tx.category}'
         )
 
         db.session.commit()
@@ -619,26 +867,7 @@ def update_transaction(transaction_id):
         return jsonify({
             "success": True,
             "message": "记录已更新",
-            "transaction": {
-                "id": tx.id,
-                "type": tx.type,
-                "amount": float(tx.amount),
-                "category": tx.category,
-                "date": tx.date,
-                "time": tx.time,
-                "remark": tx.remark,
-                "account_id": tx.account_id,
-                "currency": tx.currency or 'CNY',
-                "original_amount": float(tx.original_amount) if tx.original_amount else None,
-                "exchange_rate": float(tx.exchange_rate) if tx.exchange_rate else None,
-                "created_at": tx.created_at.isoformat() if tx.created_at else None,
-                "updated_at": tx.updated_at.isoformat() if tx.updated_at else None,
-                "reimbursement_status": tx.reimbursement_status or 'none',
-                "reimbursed_amount": float(tx.reimbursed_amount) if tx.reimbursed_amount else 0,
-                "write_off_id": tx.write_off_id,
-                "payer_user_id": tx.payer_user_id,
-                "split_details": json.loads(tx.split_details) if tx.split_details else []
-            },
+            "transaction": serialize_transaction(tx),
             "new_balance": balance
         })
     except Exception as e:

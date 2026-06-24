@@ -1,4 +1,4 @@
-﻿from cash_app import *  # noqa: F401,F403
+﻿from cash_app import *  
 from cash_app.app_state import app, config
 
 if __name__ == '__main__':

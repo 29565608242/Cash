@@ -9,15 +9,17 @@
 
     <view class="card">
       <view v-if="!transactions.length" class="text-muted">暂无交易数据</view>
-      <view v-for="item in transactions" :key="item.id" class="row">
-        <view>
-          <text class="cat">{{ item.category }}</text>
-          <text class="meta">{{ item.date }} {{ item.time }}</text>
+      <view v-for="item in transactions" :key="item.id" class="tx-row" @tap="openDetail(item.id)">
+        <view class="left">
+          <view :class="iconClass(item)">{{ displayCategory(item).slice(0, 1) }}</view>
+          <view>
+            <text class="cat">{{ displayCategory(item) }}</text>
+            <text class="meta">{{ displayMeta(item) }}</text>
+          </view>
         </view>
-        <text :class="item.type === 'income' ? 'amt income' : 'amt expense'">
-          {{ item.type === 'income' ? '+' : '-' }}¥{{ formatMoney(item.amount) }}
+        <text :class="amountClass(item)">
+          {{ amountPrefix(item) }}¥{{ formatMoney(item.amount) }}
         </text>
-        <view class="btn-line" @tap="openDetail(item.id)">详情</view>
       </view>
     </view>
   </view>
@@ -43,6 +45,39 @@ function openDetail(id) {
   uni.navigateTo({ url: `/pages/transaction-detail/index?id=${id}` })
 }
 
+function displayCategory(item) {
+  if (item.business_type === 'transfer') return '转账'
+  if (item.business_type === 'prepay') return '预交款'
+  return item.category || '未分类'
+}
+
+function displayMeta(item) {
+  if (item.business_type === 'transfer') {
+    return `${item.account_name || '-'} → ${item.target_account_name || '-'} · ${item.date}`
+  }
+  const flags = []
+  if (item.location_name) flags.push('位置')
+  if (item.attachments && item.attachments.length) flags.push('凭证')
+  if (item.include_in_stats === false) flags.push('不统计')
+  const suffix = flags.length ? ` · ${flags.join(' · ')}` : ''
+  return `${item.date || ''} ${item.time || ''}${suffix}`
+}
+
+function amountClass(item) {
+  if (item.business_type === 'transfer') return 'amt transfer'
+  return item.type === 'income' ? 'amt income' : 'amt expense'
+}
+
+function amountPrefix(item) {
+  if (item.business_type === 'transfer') return ''
+  return item.type === 'income' ? '+' : '-'
+}
+
+function iconClass(item) {
+  if (item.business_type === 'transfer') return 'tx-icon transfer'
+  return item.type === 'income' ? 'tx-icon income' : 'tx-icon expense'
+}
+
 async function loadTransactions() {
   try {
     const period = periodMap[periodIndex.value]
@@ -53,13 +88,12 @@ async function loadTransactions() {
   }
 }
 
-onShow(() => {
-  loadTransactions()
-})
+onShow(loadTransactions)
 </script>
 
 <style lang="scss" scoped>
 @import '../../styles/variables.scss';
+@import '../../styles/components.scss';
 
 .page {
   padding-top: 12rpx;
@@ -82,15 +116,54 @@ onShow(() => {
   font-size: 24rpx;
 }
 
-.row {
+.tx-row {
+  min-height: 104rpx;
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-top: 16rpx;
+  border-bottom: 1px solid $border;
+}
+
+.tx-row:last-child {
+  border-bottom: 0;
+}
+
+.left {
+  display: flex;
+  align-items: center;
+  gap: 18rpx;
+  min-width: 0;
+}
+
+.tx-icon {
+  width: 66rpx;
+  height: 66rpx;
+  border-radius: 33rpx;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  font-size: 26rpx;
+  font-weight: 800;
+}
+
+.tx-icon.expense {
+  background: #ff7b8c;
+}
+
+.tx-icon.income {
+  background: #10b981;
+}
+
+.tx-icon.transfer {
+  background: #607080;
 }
 
 .cat {
   display: block;
+  color: $text-primary;
+  font-size: 30rpx;
+  font-weight: 700;
 }
 
 .meta {
@@ -98,9 +171,26 @@ onShow(() => {
   color: $text-secondary;
   font-size: 22rpx;
   margin-top: 4rpx;
+  max-width: 420rpx;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .amt {
-  font-weight: 700;
+  font-weight: 800;
+  font-size: 32rpx;
+}
+
+.amt.income {
+  color: #10b981;
+}
+
+.amt.expense {
+  color: #ef4444;
+}
+
+.amt.transfer {
+  color: #607080;
 }
 </style>

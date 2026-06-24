@@ -27,11 +27,36 @@ class Transaction(db.Model):
     ledger_id = db.Column(db.Integer, db.ForeignKey('ledgers.id'), nullable=True)
     payer_user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)
     split_details = db.Column(db.Text, nullable=True)
+    business_type = db.Column(db.String(20), default='normal')  # normal, transfer, prepay
+    target_account_id = db.Column(db.Integer, db.ForeignKey('accounts.id'), nullable=True)
+    include_in_stats = db.Column(db.Boolean, default=True)
+    location_name = db.Column(db.String(255), nullable=True)
+    latitude = db.Column(db.Numeric(10, 6), nullable=True)
+    longitude = db.Column(db.Numeric(10, 6), nullable=True)
+    attachments = db.Column(db.Text, nullable=True)  # JSON array
 
-    account = db.relationship('Account', backref=db.backref('transactions', lazy='dynamic'))
+    account = db.relationship('Account', foreign_keys=[account_id], backref=db.backref('transactions', lazy='dynamic'))
+    target_account = db.relationship('Account', foreign_keys=[target_account_id])
     user = db.relationship('User', foreign_keys=[user_id], backref=db.backref('transactions', lazy='dynamic'))
     ledger = db.relationship('Ledger', backref=db.backref('transactions', lazy='dynamic'))
     payer_user = db.relationship('User', foreign_keys=[payer_user_id], backref=db.backref('paid_transactions', lazy='dynamic'))
+
+
+class TransactionSplit(db.Model):
+    __tablename__ = 'transaction_splits'
+    id = db.Column(db.Integer, primary_key=True, autoincrement=True)
+    transaction_id = db.Column(db.Integer, db.ForeignKey('transactions.id'), nullable=False)
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
+    amount = db.Column(db.Numeric(10, 2), nullable=False)
+    share_type = db.Column(db.String(20), default='equal')
+    is_settled = db.Column(db.Boolean, default=False)
+    created_at = db.Column(db.DateTime, default=datetime.now)
+
+    transaction = db.relationship(
+        'Transaction',
+        backref=db.backref('split_items', lazy='dynamic', cascade='all, delete-orphan')
+    )
+    user = db.relationship('User')
 
 class Category(db.Model):
     __tablename__ = 'categories'

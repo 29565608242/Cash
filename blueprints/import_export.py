@@ -31,11 +31,33 @@ def _login_required(f):
     @wraps(f)
     def decorated_function(*args, **kwargs):
         if not session.get('user_id'):
+            _apply_token_session()
+        if not session.get('user_id'):
             if request.path.startswith('/api/'):
                 return jsonify({'success': False, 'message': '登录已过期，请刷新页面'}), 401
             return redirect(url_for('login'))
         return f(*args, **kwargs)
     return decorated_function
+
+
+def _apply_token_session():
+    auth_header = request.headers.get('Authorization', '')
+    if not auth_header:
+        return
+    try:
+        from cash_app.routes_miniapp import _extract_token, _prune_token, resolve_user_from_token
+        user = resolve_user_from_token(auth_header)
+        if not user:
+            return
+        g.user = user
+        session['user_id'] = user.id
+        session['is_admin'] = bool(user.is_admin)
+        session.setdefault('self_view', True)
+        info = _prune_token(_extract_token(auth_header))
+        if info and info.get('active_ledger_id'):
+            session['active_ledger_id'] = info['active_ledger_id']
+    except Exception:
+        return
 
 
 def _smtp_configured():
@@ -77,7 +99,12 @@ TYPE_MAPPING = {
 def data_tools_page():
     """数据工具页面（导入/导出）"""
     from app import Account  # 避免循环导入
-    accounts = Account.query.filter_by(user_id=g.user.id).all()
+    from app import get_current_ledger_id
+    current_ledger_id = get_current_ledger_id()
+    if current_ledger_id:
+        accounts = Account.query.filter_by(ledger_id=current_ledger_id).all()
+    else:
+        accounts = Account.query.filter_by(user_id=g.user.id).all()
     return render_template('data_tools.html', accounts=accounts)
 
 
@@ -386,9 +413,11 @@ def create_export():
     # 构建查询（按当前账本过滤）
     from app import get_current_ledger_id
     current_ledger_id = get_current_ledger_id()
-    query = Transaction.query.filter_by(user_id=g.user.id)
+    query = Transaction.query
     if current_ledger_id:
         query = query.filter(Transaction.ledger_id == current_ledger_id)
+    else:
+        query = query.filter(Transaction.user_id == g.user.id)
     if start_date:
         query = query.filter(Transaction.date >= start_date)
     if end_date:
@@ -407,6 +436,7 @@ def create_export():
         'start_date': start_date,
         'end_date': end_date,
         'account_id': account_id,
+        'ledger_id': current_ledger_id,
     }, ensure_ascii=False)
 
     # 创建任务记录
@@ -813,7 +843,11 @@ def _run_export_background(task_id, app):
             db.session.commit()
 
             filters = json.loads(task.filters)
-            query = Transaction.query.filter_by(user_id=task.user_id)
+            query = Transaction.query
+            if filters.get('ledger_id'):
+                query = query.filter(Transaction.ledger_id == filters['ledger_id'])
+            else:
+                query = query.filter(Transaction.user_id == task.user_id)
             if filters.get('start_date'):
                 query = query.filter(Transaction.date >= filters['start_date'])
             if filters.get('end_date'):

@@ -77,6 +77,8 @@ const periodOptions = ['最近', '今天', '本月', '本年']
 const periodMap = ['', 'day', 'month', 'year']
 const reportPeriodMap = ['week', 'week', 'month', 'year']
 const periodIndex = ref(0)
+const currentLedgerId = ref(null)
+const currentLedgerName = ref('切换账本')
 
 const summary = reactive({
   income: 0,
@@ -154,7 +156,7 @@ async function switchLedger() {
     const list = res.ledgers || []
     if (!list.length) {
       uni.showToast({ title: '请先创建账本', icon: 'none' })
-      setTimeout(() => uni.navigateTo({ url: '/pages/ledgers/index' }), 800)
+      setTimeout(() => uni.switchTab({ url: '/pages/ledgers/index' }), 800)
       return
     }
     const names = list.map((item) => item.name)

@@ -998,7 +998,8 @@ def get_current_budget():
         # 计算当月支出（按分类）
         expense_filter = [
             Transaction.type == 'expense',
-            Transaction.date.startswith(month)
+            Transaction.date.startswith(month),
+            db.or_(Transaction.include_in_stats == True, Transaction.include_in_stats.is_(None))
         ]
         if current_ledger_id:
             expense_filter.append(Transaction.ledger_id == current_ledger_id)
@@ -1368,7 +1369,10 @@ def delete_account(account_id):
 @login_required
 def get_report(period):
     try:
-        transactions = filter_transactions_by_period_orm(period).all()
+        current_ledger_id = get_current_ledger_id()
+        transactions = filter_transactions_by_period_orm(period).filter(
+            db.or_(Transaction.include_in_stats == True, Transaction.include_in_stats.is_(None))
+        ).all()
         income = float(sum(t.amount for t in transactions if t.type == 'income'))
         expense = float(sum(t.amount for t in transactions if t.type == 'expense'))
         return jsonify({
@@ -1448,7 +1452,8 @@ def get_advanced_report():
         # 查询数据（带权限过滤）
         query = Transaction.query.filter(
             Transaction.date >= start,
-            Transaction.date <= end
+            Transaction.date <= end,
+            db.or_(Transaction.include_in_stats == True, Transaction.include_in_stats.is_(None))
         )
 
         user_id = session.get('user_id')
@@ -1585,7 +1590,8 @@ def download_report():
         # 查询数据（带权限过滤）
         query = Transaction.query.filter(
             Transaction.date >= start,
-            Transaction.date <= end
+            Transaction.date <= end,
+            db.or_(Transaction.include_in_stats == True, Transaction.include_in_stats.is_(None))
         )
 
         user_id = session.get('user_id')

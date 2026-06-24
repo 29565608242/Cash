@@ -1,6 +1,6 @@
 ﻿from .app_state import app, db
 from .models import (AIAnalysis, Account, Budget, Category, InviteCode, Ledger,
-                     LedgerMember, MoneyChangeLog, Transaction, User)
+                     LedgerMember, MoneyChangeLog, Transaction, TransactionSplit, User)
 
 # 淇濊瘉琛ㄥ凡瀛樺湪
 def initialize_db():
@@ -302,6 +302,48 @@ def initialize_db():
         except Exception:
             try:
                 db.session.execute(db.text('ALTER TABLE transactions ADD COLUMN split_details TEXT DEFAULT NULL'))
+                db.session.commit()
+            except Exception:
+                db.session.rollback()
+
+        # ---- 数据库迁移：为移动端增强记账添加业务类型、附件、位置与统计开关 ----
+        for col_def in [
+            ('business_type', 'ALTER TABLE transactions ADD COLUMN business_type VARCHAR(20) DEFAULT "normal"'),
+            ('target_account_id', 'ALTER TABLE transactions ADD COLUMN target_account_id INT DEFAULT NULL'),
+            ('include_in_stats', 'ALTER TABLE transactions ADD COLUMN include_in_stats TINYINT(1) DEFAULT 1'),
+            ('location_name', 'ALTER TABLE transactions ADD COLUMN location_name VARCHAR(255) DEFAULT NULL'),
+            ('latitude', 'ALTER TABLE transactions ADD COLUMN latitude DECIMAL(10,6) DEFAULT NULL'),
+            ('longitude', 'ALTER TABLE transactions ADD COLUMN longitude DECIMAL(10,6) DEFAULT NULL'),
+            ('attachments', 'ALTER TABLE transactions ADD COLUMN attachments TEXT DEFAULT NULL'),
+        ]:
+            col_name, alter_sql = col_def
+            try:
+                db.session.execute(db.text(f'SELECT {col_name} FROM transactions LIMIT 0'))
+            except Exception:
+                try:
+                    db.session.execute(db.text(alter_sql))
+                    db.session.commit()
+                except Exception:
+                    db.session.rollback()
+
+        # ---- 数据库迁移：创建独立 AA 分摊明细表 ----
+        try:
+            db.session.execute(db.text('SELECT 1 FROM transaction_splits LIMIT 0'))
+        except Exception:
+            try:
+                db.session.execute(db.text('''
+                    CREATE TABLE IF NOT EXISTS transaction_splits (
+                        id INT AUTO_INCREMENT PRIMARY KEY,
+                        transaction_id INT NOT NULL,
+                        user_id INT NOT NULL,
+                        amount DECIMAL(10,2) NOT NULL,
+                        share_type VARCHAR(20) DEFAULT 'equal',
+                        is_settled TINYINT(1) DEFAULT 0,
+                        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                        FOREIGN KEY (transaction_id) REFERENCES transactions(id) ON DELETE CASCADE,
+                        FOREIGN KEY (user_id) REFERENCES users(id)
+                    )
+                '''))
                 db.session.commit()
             except Exception:
                 db.session.rollback()

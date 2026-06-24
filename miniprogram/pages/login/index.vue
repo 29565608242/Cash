@@ -2,7 +2,7 @@
   <view class="page">
     <view class="hero">
       <text class="title">线上记账</text>
-      <text class="subtitle">移动端快速记账与看板</text>
+      <text class="subtitle">移动端快速记账与账本协作</text>
     </view>
 
     <view class="card form">
@@ -28,7 +28,7 @@ function validate() {
     return false
   }
   if (password.value.length < 6) {
-    uni.showToast({ title: '密码至少6位', icon: 'none' })
+    uni.showToast({ title: '密码至少 6 位', icon: 'none' })
     return false
   }
   return true
@@ -38,7 +38,7 @@ async function submitLogin() {
   if (!validate()) return
   try {
     await login(username.value.trim(), password.value)
-    uni.switchTab({ url: '/pages/index/index' })
+    uni.switchTab({ url: '/pages/ledgers/index' })
   } catch (error) {
     uni.showToast({ title: error.message || '登录失败', icon: 'none' })
   }
@@ -51,6 +51,7 @@ function goRegister() {
 
 <style lang="scss" scoped>
 @import '../../styles/variables.scss';
+@import '../../styles/components.scss';
 
 .page {
   min-height: 100vh;

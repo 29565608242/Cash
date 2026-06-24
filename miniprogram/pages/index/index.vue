@@ -117,11 +117,12 @@ async function loadDashboard() {
 }
 
 function openAdd(type) {
-  uni.navigateTo({ url: `/pages/transaction-add/index?type=${type}` })
+  uni.setStorageSync('cash_add_type', type)
+  uni.switchTab({ url: '/pages/transaction-add/index' })
 }
 
 function go(url) {
-  if (url === '/pages/reports/index') {
+  if (url === '/pages/ledgers/index' || url === '/pages/transaction-add/index' || url === '/pages/profile/index') {
     uni.switchTab({ url })
     return
   }
@@ -134,7 +135,7 @@ async function goLedger() {
     const list = res.ledgers || []
     if (!list.length) {
         uni.showToast({ title: "请先创建账本", icon: "none" })
-        setTimeout(() => uni.navigateTo({ url: '/pages/ledgers/index' }), 800)
+        setTimeout(() => uni.switchTab({ url: '/pages/ledgers/index' }), 800)
       return
     }
     const names = list.map((item) => item.name)

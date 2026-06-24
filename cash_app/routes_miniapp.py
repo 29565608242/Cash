@@ -5,7 +5,7 @@ import time
 from datetime import datetime
 from functools import wraps
 
-from flask import Blueprint, g, jsonify, request, session
+from flask import Blueprint, g, jsonify, request, session, url_for
 from werkzeug.utils import secure_filename
 
 from .app_state import app, db
@@ -99,11 +99,15 @@ def token_required(f):
 
 
 def _build_auth_payload(user):
+    default_avatar = url_for('static', filename='avatars/default_avatar.svg', _external=True)
+    avatar_url = default_avatar
+    if user.avatar and user.avatar not in ('default_avatar.svg', 'default_avatar.png'):
+        avatar_url = url_for('static', filename=f'avatars/{user.avatar}', _external=True)
     return {
         'id': user.id,
         'username': user.username,
         'nickname': user.nickname,
-        'avatar': f'http://127.0.0.1:8080/static/avatars/{user.avatar}' if user.avatar and user.avatar not in ('default_avatar.svg', 'default_avatar.png') else 'http://127.0.0.1:8080/static/avatars/default_avatar.svg',
+        'avatar': avatar_url,
         'email': user.email,
         'phone': user.phone,
         'is_admin': bool(user.is_admin),
@@ -282,6 +286,8 @@ def miniapp_dashboard():
     today = now.strftime('%Y-%m-%d')
     month = now.strftime('%Y-%m')
     current_ledger_id = get_current_ledger_id()
+    current_ledger = Ledger.query.get(current_ledger_id) if current_ledger_id else None
+    stats_filter = db.or_(Transaction.include_in_stats == True, Transaction.include_in_stats.is_(None))
 
     tx_filters = []
     if current_ledger_id:
@@ -290,16 +296,16 @@ def miniapp_dashboard():
         tx_filters.append(Transaction.user_id == user_id)
 
     month_income = db.session.query(db.func.sum(Transaction.amount)).filter(
-        *tx_filters, Transaction.type == 'income', Transaction.date.startswith(month)
+        *tx_filters, Transaction.type == 'income', Transaction.date.startswith(month), stats_filter
     ).scalar() or 0
     month_expense = db.session.query(db.func.sum(Transaction.amount)).filter(
-        *tx_filters, Transaction.type == 'expense', Transaction.date.startswith(month)
+        *tx_filters, Transaction.type == 'expense', Transaction.date.startswith(month), stats_filter
     ).scalar() or 0
     today_income = db.session.query(db.func.sum(Transaction.amount)).filter(
-        *tx_filters, Transaction.type == 'income', Transaction.date == today
+        *tx_filters, Transaction.type == 'income', Transaction.date == today, stats_filter
     ).scalar() or 0
     today_expense = db.session.query(db.func.sum(Transaction.amount)).filter(
-        *tx_filters, Transaction.type == 'expense', Transaction.date == today
+        *tx_filters, Transaction.type == 'expense', Transaction.date == today, stats_filter
     ).scalar() or 0
 
     recent_transactions = Transaction.query.filter(*tx_filters).order_by(
@@ -321,6 +327,7 @@ def miniapp_dashboard():
         'data': {
             'date': today,
             'current_ledger_id': current_ledger_id,
+            'current_ledger_name': current_ledger.name if current_ledger else None,
             'summary': {
                 'today_income': float(today_income),
                 'today_expense': float(today_expense),
@@ -373,7 +380,13 @@ def miniapp_upload():
     if ext not in allowed_ext:
         return jsonify({'success': False, 'message': '仅支持图片文件'}), 400
 
-    upload_dir = os.path.join(app.static_folder, 'avatars')
+    upload_kind = (request.form.get('kind') or request.args.get('kind') or 'avatar').strip()
+    if upload_kind == 'transaction':
+        upload_dir = os.path.join(app.static_folder, 'uploads', 'miniapp')
+        url_prefix = '/static/uploads/miniapp'
+    else:
+        upload_dir = os.path.join(app.static_folder, 'avatars')
+        url_prefix = None
     os.makedirs(upload_dir, exist_ok=True)
 
     filename = f'{datetime.now().strftime("%Y%m%d%H%M%S")}_{secrets.token_hex(8)}.{ext}'
@@ -381,7 +394,7 @@ def miniapp_upload():
     save_path = os.path.join(upload_dir, safe_name)
     file.save(save_path)
 
-    file_url = safe_name
+    file_url = f'{url_prefix}/{safe_name}' if url_prefix else safe_name
     return jsonify({
         'success': True,
         'message': '上传成功',

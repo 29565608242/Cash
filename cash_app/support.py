@@ -17,19 +17,28 @@ def get_balance():
 
     # 管理员后台模式：查看所有用户的余额
     current_ledger_id = get_current_ledger_id()
+    stats_filter = db.or_(Transaction.include_in_stats == True, Transaction.include_in_stats.is_(None))
     if is_admin and not self_view:
-        income = db.session.query(db.func.sum(Transaction.amount)).filter_by(type='income').scalar() or 0
-        expense = db.session.query(db.func.sum(Transaction.amount)).filter_by(type='expense').scalar() or 0
-    elif current_ledger_id:
         income = db.session.query(db.func.sum(Transaction.amount)).filter(
-            Transaction.ledger_id == current_ledger_id, Transaction.type == 'income'
+            Transaction.type == 'income', stats_filter
         ).scalar() or 0
         expense = db.session.query(db.func.sum(Transaction.amount)).filter(
-            Transaction.ledger_id == current_ledger_id, Transaction.type == 'expense'
+            Transaction.type == 'expense', stats_filter
+        ).scalar() or 0
+    elif current_ledger_id:
+        income = db.session.query(db.func.sum(Transaction.amount)).filter(
+            Transaction.ledger_id == current_ledger_id, Transaction.type == 'income', stats_filter
+        ).scalar() or 0
+        expense = db.session.query(db.func.sum(Transaction.amount)).filter(
+            Transaction.ledger_id == current_ledger_id, Transaction.type == 'expense', stats_filter
         ).scalar() or 0
     else:
-        income = db.session.query(db.func.sum(Transaction.amount)).filter_by(type='income', user_id=user_id).scalar() or 0
-        expense = db.session.query(db.func.sum(Transaction.amount)).filter_by(type='expense', user_id=user_id).scalar() or 0
+        income = db.session.query(db.func.sum(Transaction.amount)).filter(
+            Transaction.type == 'income', Transaction.user_id == user_id, stats_filter
+        ).scalar() or 0
+        expense = db.session.query(db.func.sum(Transaction.amount)).filter(
+            Transaction.type == 'expense', Transaction.user_id == user_id, stats_filter
+        ).scalar() or 0
 
     return float(income - expense)
 

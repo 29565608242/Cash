@@ -29,13 +29,22 @@ function goLogin() {
 
 async function submit() {
   const username = form.username.trim()
-  if (!username) return uni.showToast({ title: '请输入用户名', icon: 'none' })
-  if (!form.password || form.password.length < 6) return uni.showToast({ title: '密码至少6位', icon: 'none' })
-  if (form.password !== form.confirm) return uni.showToast({ title: '两次密码不一致', icon: 'none' })
+  if (!username) {
+    uni.showToast({ title: '请输入用户名', icon: 'none' })
+    return
+  }
+  if (!form.password || form.password.length < 6) {
+    uni.showToast({ title: '密码至少 6 位', icon: 'none' })
+    return
+  }
+  if (form.password !== form.confirm) {
+    uni.showToast({ title: '两次密码不一致', icon: 'none' })
+    return
+  }
   try {
     await register(username, form.password, form.email.trim())
     uni.showToast({ title: '注册成功', icon: 'success' })
-    setTimeout(() => uni.switchTab({ url: '/pages/index/index' }), 300)
+    setTimeout(() => uni.switchTab({ url: '/pages/ledgers/index' }), 300)
   } catch (error) {
     showError(error, '注册失败')
   }
