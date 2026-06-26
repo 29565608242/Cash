@@ -1,14 +1,13 @@
 ﻿import os
 import uuid
 from datetime import datetime
-from functools import wraps
 
-from flask import g, jsonify, redirect, render_template, request, send_from_directory, session, url_for
+from flask import g, redirect, render_template, request, send_from_directory, session, url_for
 from werkzeug.security import generate_password_hash
 
 from .app_state import app
 from .auth import admin_required, login_required
-from .models import Account, Ledger, LedgerMember, Transaction, User, db
+from .models import Account, Ledger, Transaction, User, db
 
 @app.route('/login', methods=['GET', 'POST'])
 def login():
@@ -27,12 +26,8 @@ def login():
         error = '管理员账号或密码错误' if is_admin else '用户名或密码错误'
         return render_template('login.html', error=error)
     reset_success = request.args.get('reset_success')
-    return render_template('login.html', reset_success=reset_success)
-
-@app.route('/admin-login', methods=['GET', 'POST'])
-def admin_login():
-    """保留旧路由兼容，重定向到统一登录页"""
-    return redirect(url_for('login'))
+    password_changed = request.args.get('password_changed')
+    return render_template('login.html', reset_success=reset_success, password_changed=password_changed)
 
 @app.route('/logout')
 def logout():
@@ -60,13 +55,8 @@ def register():
         db.session.add(user)
         db.session.flush()
 
-        # 为新用户创建默认个人账本和默认账户
-        ledger = Ledger(name=f"{username}的个人账本", owner_id=user.id)
-        db.session.add(ledger)
-        db.session.flush()
-        member = LedgerMember(ledger_id=ledger.id, user_id=user.id, role='manager')
-        db.session.add(member)
-        account = Account(name='默认账户', balance=0, account_type='cash', user_id=user.id, ledger_id=ledger.id)
+        # 个人模式使用 ledger_id = NULL，不再创建“个人账本”。
+        account = Account(name='默认账户', balance=0, account_type='cash', user_id=user.id, ledger_id=None)
         db.session.add(account)
 
         db.session.commit()
@@ -74,21 +64,12 @@ def register():
         return render_template('register.html', success='注册成功，2秒后自动跳转登录页面~', redirect_login=True)
     return render_template('register.html')
 
-# 登录校验装饰器
-def login_required(f):
-    @wraps(f)
-    def decorated_function(*args, **kwargs):
-        if 'user_id' not in session:
-            return redirect(url_for('login', next=request.url))
-        return f(*args, **kwargs)
-    return decorated_function
-
 # 忘记密码路由
 @app.route('/forgot-password', methods=['GET', 'POST'])
 def forgot_password():
     if request.method == 'POST':
-        username = request.form.get('username')
-        email = request.form.get('email')
+        username = (request.form.get('username') or '').strip()
+        email = (request.form.get('email') or '').strip()
 
         if not username or not email:
             return render_template('forgot_password.html', error='用户名和邮箱必须填写')
@@ -97,7 +78,7 @@ def forgot_password():
         if not user:
             return render_template('forgot_password.html', error='用户不存在')
 
-        if not user.email or user.email != email:
+        if not user.email or user.email.strip().lower() != email.lower():
             return render_template('forgot_password.html', error='邮箱不匹配，请使用注册时填写的邮箱')
 
         session['reset_allowed'] = True
@@ -112,7 +93,7 @@ def forgot_password():
 @app.route('/reset-password', methods=['GET', 'POST'])
 def reset_password():
     if request.method == 'POST':
-        username = request.form.get('username')
+        username = (request.form.get('username') or '').strip()
         new_password = request.form.get('new_password')
         confirm_password = request.form.get('confirm_password')
 
@@ -121,17 +102,17 @@ def reset_password():
             return redirect(url_for('forgot_password'))
 
         if not username or not new_password or not confirm_password:
-            return render_template('reset_password.html', error='所有字段都必须填写')
+            return render_template('reset_password.html', error='所有字段都必须填写', username=username)
 
         if new_password != confirm_password:
-            return render_template('reset_password.html', error='新密码和确认密码不一致')
+            return render_template('reset_password.html', error='新密码和确认密码不一致', username=username)
 
         if len(new_password) < 6:
-            return render_template('reset_password.html', error='密码长度不能少于6位')
+            return render_template('reset_password.html', error='密码长度不能少于6位', username=username)
 
         user = User.query.filter_by(username=username).first()
         if not user:
-            return render_template('reset_password.html', error='用户不存在')
+            return render_template('reset_password.html', error='用户不存在', username=username)
 
         # 更新密码
         user.set_password(new_password)
@@ -150,6 +131,38 @@ def reset_password():
         return redirect(url_for('forgot_password'))
     return render_template('reset_password.html', username=username)
 
+
+@app.route('/change-password', methods=['GET', 'POST'])
+def change_password():
+    """允许用户在登录页通过用户名和当前密码修改账号密码。"""
+    if request.method == 'POST':
+        username = (request.form.get('username') or '').strip()
+        current_password = request.form.get('current_password') or ''
+        new_password = request.form.get('new_password') or ''
+        confirm_password = request.form.get('confirm_password') or ''
+
+        context = {'username': username}
+        if not username or not current_password or not new_password or not confirm_password:
+            return render_template('change_password.html', error='所有字段都必须填写', **context)
+
+        if new_password != confirm_password:
+            return render_template('change_password.html', error='新密码和确认密码不一致', **context)
+
+        if len(new_password) < 6:
+            return render_template('change_password.html', error='密码长度不能少于6位', **context)
+
+        user = User.query.filter_by(username=username).first()
+        if not user or not user.check_password(current_password):
+            return render_template('change_password.html', error='用户名或当前密码错误', **context)
+
+        user.set_password(new_password)
+        db.session.commit()
+        session.clear()
+
+        return redirect(url_for('login', password_changed=1))
+
+    return render_template('change_password.html')
+
 # 用户信息路由
 @app.route('/user-profile', methods=['GET', 'POST'])
 @login_required
@@ -160,10 +173,6 @@ def user_profile():
         # 处理头像上传（立即提交，确保头像独立保存）
         avatar_file = request.files.get('avatar')
         if avatar_file and avatar_file.filename:
-            import os
-            import uuid
-            from werkzeug.utils import secure_filename
-
             # 验证文件类型
             allowed_extensions = {'png', 'jpg', 'jpeg', 'gif', 'svg', 'webp'}
             ext = avatar_file.filename.rsplit('.', 1)[-1].lower() if '.' in avatar_file.filename else ''
@@ -254,7 +263,12 @@ def index():
     from .auth import get_current_ledger_id
     from .models import Ledger
     active_ledger_id = get_current_ledger_id()
-    ledgers = Ledger.query.filter_by(owner_id=g.user.id, is_active=True).all() if g.user else []
+    ledgers = []
+    if g.user:
+        ledgers = [
+            ledger for ledger in Ledger.query.filter_by(owner_id=g.user.id, is_active=True).all()
+            if ledger.name != f"{g.user.username}的个人账本"
+        ]
     return render_template('index.html', username=username, is_admin=is_admin, self_view=False, active_ledger_id=active_ledger_id, ledgers=ledgers)
 
 @app.route('/admin')

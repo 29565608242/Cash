@@ -25,6 +25,8 @@
         .role-btn.active {background:#fff;color:#409EFF;box-shadow:0 2px 8px rgba(64,158,255,.15);}
         .role-btn:hover:not(.active){color:#409EFF;}
         .login-links{margin-top:23px;font-size:15px;}
+        .account-links{margin-top:12px;font-size:14px;color:#9aa6b2;}
+        .account-links a{margin:0 6px;}
     </style>
 </head>
 <body>
@@ -42,7 +44,13 @@
         </form>
         {% if error %}<div class="error-msg">{{ error }}</div>{% endif %}
         {% if reset_success %}<div class="success-msg">密码重置成功，请使用新密码登录</div>{% endif %}
-        <div class="login-links" id="registerLink">没有账号？<a href="/register">去注册</a> | <a href="/forgot-password">忘记密码</a></div>
+        {% if password_changed %}<div class="success-msg">密码修改成功，请使用新密码登录</div>{% endif %}
+        <div class="login-links" id="registerLink">没有账号？<a href="/register">去注册</a></div>
+        <div class="account-links" id="passwordLinks">
+            <a href="/forgot-password">忘记密码</a>
+            <span>|</span>
+            <a href="/change-password">修改账号密码</a>
+        </div>
     </div>
     <script>
         function switchRole(role) {
@@ -51,6 +59,7 @@
             document.getElementById(role === 'user' ? 'roleUser' : 'roleAdmin').classList.add('active');
             document.getElementById('loginBtn').textContent = role === 'admin' ? '管理员登录' : '登 录';
             document.getElementById('registerLink').style.display = role === 'admin' ? 'none' : '';
+            document.getElementById('passwordLinks').style.display = role === 'admin' ? 'none' : '';
         }
     </script>
 </body>

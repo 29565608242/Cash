@@ -13,10 +13,11 @@ from sqlalchemy import func
 smart_bp = Blueprint('smart_bookkeeping', __name__, url_prefix='/api/smart')
 logger = logging.getLogger(__name__)
 
-# ==================== 导入 app 中的模型 ====================
+# ==================== 导入应用模型 ====================
 def _import_models():
     """延迟导入避免循环依赖"""
-    from app import db, Transaction, Category, Account, AIAnalysis
+    from cash_app.app_state import db
+    from cash_app.models import AIAnalysis, Account, Category, Transaction
     return db, Transaction, Category, Account, AIAnalysis
 
 
@@ -58,7 +59,7 @@ def _build_period_range(period, start_date=None, end_date=None):
 def _build_analysis_dataset(user_id, period, start_date=None, end_date=None):
     """Collect report-like transaction data for AI analysis."""
     _, Transaction, _, _, _ = _import_models()
-    from app import get_current_ledger_id
+    from cash_app.auth import get_current_ledger_id
 
     start, end = _build_period_range(period, start_date, end_date)
     query = Transaction.query.filter(
@@ -885,11 +886,11 @@ def smart_confirm():
             return jsonify({'success': False, 'message': '金额格式不正确'}), 400
 
         currency = data.get('currency', 'CNY').upper()
-        from app import CURRENCY_NAMES
+        from cash_app.core import CURRENCY_NAMES
         if currency not in CURRENCY_NAMES and currency != 'CNY':
             return jsonify({'success': False, 'message': f'不支持的币种: {currency}'}), 400
 
-        from app import get_exchange_rate
+        from cash_app.core import get_exchange_rate
         exchange_rate = None
         tx_amount = amount
         tx_original_amount = None
@@ -934,7 +935,7 @@ def smart_confirm():
 
         account_id = data.get('account_id')
         account = None
-        from app import get_current_ledger_id
+        from cash_app.auth import get_current_ledger_id
         current_ledger_id = get_current_ledger_id()
         if account_id:
             account = Account.query.filter_by(id=account_id).first()
@@ -988,7 +989,7 @@ def smart_confirm():
         )
 
         db.session.commit()
-        from app import get_balance
+        from cash_app.support import get_balance
         balance = get_balance()
         logger.info(f'智能记账确认: {tx_type} ¥{tx_amount} - {category_name}')
 

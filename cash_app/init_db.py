@@ -1,6 +1,7 @@
 ﻿from .app_state import app, db
 from .models import (AIAnalysis, Account, Budget, Category, InviteCode, Ledger,
-                     LedgerMember, MoneyChangeLog, Transaction, TransactionSplit, User)
+                     LedgerMember, Loan, MoneyChangeLog, RecurringRule,
+                     Transaction, TransactionSplit, User)
 
 # 淇濊瘉琛ㄥ凡瀛樺湪
 def initialize_db():
@@ -242,7 +243,7 @@ def initialize_db():
                     id INT AUTO_INCREMENT PRIMARY KEY,
                     ledger_id INT NOT NULL,
                     user_id INT NOT NULL,
-                    role VARCHAR(20) DEFAULT 'viewer',
+                    role VARCHAR(20) DEFAULT 'editor',
                     joined_at DATETIME DEFAULT CURRENT_TIMESTAMP,
                     FOREIGN KEY (ledger_id) REFERENCES ledgers(id),
                     FOREIGN KEY (user_id) REFERENCES users(id),
@@ -351,20 +352,7 @@ def initialize_db():
         # ---- 涓烘病鏈夎处鎴风殑鐢ㄦ埛鍒涘缓榛樿璐︽埛锛堝甫 ledger_id锛?----
         for u in User.query.all():
             if Account.query.filter_by(user_id=u.id).count() == 0:
-                db.session.add(Account(name='榛樿璐︽埛', balance=0, account_type='cash', user_id=u.id))
-        db.session.commit()
-
-        # ---- 涓哄凡鏈夌敤鎴峰垱寤轰釜浜洪粯璁よ处鏈?----
-        for u in User.query.all():
-            if Ledger.query.filter_by(owner_id=u.id).count() == 0:
-                ledger = Ledger(name=f"{u.username}的个人账本", owner_id=u.id)
-                db.session.add(ledger)
-                db.session.flush()
-                member = LedgerMember(ledger_id=ledger.id, user_id=u.id, role='manager')
-                db.session.add(member)
-                Transaction.query.filter_by(user_id=u.id, ledger_id=None).update({'ledger_id': ledger.id})
-                Account.query.filter_by(user_id=u.id, ledger_id=None).update({'ledger_id': ledger.id})
-                Budget.query.filter_by(user_id=u.id, ledger_id=None).update({'ledger_id': ledger.id})
+                db.session.add(Account(name='默认账户', balance=0, account_type='cash', user_id=u.id, ledger_id=None))
         db.session.commit()
 
         # ---- 鏁版嵁搴撹縼绉伙細鍒涘缓鍊熻捶琛?----
@@ -451,3 +439,52 @@ def initialize_db():
             except Exception:
                 db.session.rollback()
 
+        # ---- 数据迁移：历史“个人账本”合并到个人模式（ledger_id = NULL）----
+        try:
+            for u in User.query.all():
+                legacy_name = f"{u.username}的个人账本"
+                legacy_ledgers = Ledger.query.filter_by(owner_id=u.id, name=legacy_name).all()
+                for ledger in legacy_ledgers:
+                    ledger_id = ledger.id
+
+                    for account in Account.query.filter_by(ledger_id=ledger_id).all():
+                        account.user_id = u.id
+                        account.ledger_id = None
+
+                    Transaction.query.filter_by(ledger_id=ledger_id).update({
+                        Transaction.user_id: u.id,
+                        Transaction.ledger_id: None,
+                    }, synchronize_session=False)
+                    Budget.query.filter_by(ledger_id=ledger_id).update({
+                        Budget.user_id: u.id,
+                        Budget.ledger_id: None,
+                    }, synchronize_session=False)
+                    Loan.query.filter_by(ledger_id=ledger_id).update({
+                        Loan.user_id: u.id,
+                        Loan.ledger_id: None,
+                    }, synchronize_session=False)
+                    RecurringRule.query.filter_by(ledger_id=ledger_id).update({
+                        RecurringRule.user_id: u.id,
+                        RecurringRule.ledger_id: None,
+                    }, synchronize_session=False)
+                    MoneyChangeLog.query.filter_by(ledger_id=ledger_id).update({
+                        MoneyChangeLog.user_id: u.id,
+                        MoneyChangeLog.ledger_id: None,
+                    }, synchronize_session=False)
+
+                    InviteCode.query.filter_by(ledger_id=ledger_id).delete(synchronize_session=False)
+                    LedgerMember.query.filter_by(ledger_id=ledger_id).delete(synchronize_session=False)
+                    ledger.is_active = False
+
+                if not Account.query.filter_by(user_id=u.id, ledger_id=None).first():
+                    db.session.add(Account(
+                        name='默认账户',
+                        balance=0,
+                        account_type='cash',
+                        user_id=u.id,
+                        ledger_id=None,
+                    ))
+            db.session.commit()
+        except Exception as e:
+            db.session.rollback()
+            app.logger.warning(f"迁移个人账本到个人模式失败: {e}")

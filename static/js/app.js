@@ -1002,6 +1002,7 @@ async function openMemberModal(ledgerId) {
     const modal = document.getElementById('memberModal');
     modal.classList.add('active');
     document.getElementById('addMemberUsername').value = '';
+    document.getElementById('addMemberRole').value = 'editor';
 
     try {
         const res = await fetch(`/api/ledgers/${ledgerId}/members`);

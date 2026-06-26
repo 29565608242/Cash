@@ -9,6 +9,18 @@ from .auth import login_required, require_ledger_access, get_current_ledger_id, 
 from .models import Account, Budget, Category, InviteCode, Ledger, LedgerMember, Transaction, User
 from .support import get_balance
 
+
+def _is_personal_ledger(ledger):
+    """Return whether a ledger is the owner's default personal ledger."""
+    if not ledger or not ledger.owner:
+        return False
+    return ledger.name == f"{ledger.owner.username}的个人账本"
+
+
+def _ledger_share_enabled(ledger):
+    return not _is_personal_ledger(ledger)
+
+
 @app.route('/api/ledgers', methods=['GET'])
 @login_required
 def list_ledgers():
@@ -24,57 +36,60 @@ def list_ledgers():
         result = []
         stats_filter = db.or_(Transaction.include_in_stats == True, Transaction.include_in_stats.is_(None))
         for ledger in owned + member_ledgers:
-            if ledger.id not in seen:
-                seen.add(ledger.id)
-                role = get_user_ledger_role(ledger.id, user_id)
-                member_count = LedgerMember.query.filter_by(ledger_id=ledger.id).count()
-                income = db.session.query(db.func.sum(Transaction.amount)).filter(
-                    Transaction.ledger_id == ledger.id,
-                    Transaction.type == 'income',
-                    Transaction.date.startswith(month),
-                    stats_filter
-                ).scalar() or 0
-                expense = db.session.query(db.func.sum(Transaction.amount)).filter(
-                    Transaction.ledger_id == ledger.id,
-                    Transaction.type == 'expense',
-                    Transaction.date.startswith(month),
-                    stats_filter
-                ).scalar() or 0
-                balance_income = db.session.query(db.func.sum(Transaction.amount)).filter(
-                    Transaction.ledger_id == ledger.id,
-                    Transaction.type == 'income',
-                    stats_filter
-                ).scalar() or 0
-                balance_expense = db.session.query(db.func.sum(Transaction.amount)).filter(
-                    Transaction.ledger_id == ledger.id,
-                    Transaction.type == 'expense',
-                    stats_filter
-                ).scalar() or 0
-                members = LedgerMember.query.filter_by(ledger_id=ledger.id).limit(5).all()
-                result.append({
-                    'id': ledger.id,
-                    'name': ledger.name,
-                    'description': ledger.description,
-                    'currency': ledger.currency,
-                    'owner_id': ledger.owner_id,
-                    'owner_name': ledger.owner.username if ledger.owner else None,
-                    'role': role,
-                    'member_count': member_count,
-                    'balance': float(balance_income) - float(balance_expense),
-                    'month_income': float(income),
-                    'month_expense': float(expense),
-                    'is_current': ledger.id == current_ledger_id,
-                    'members': [
-                        {
-                            'user_id': m.user_id,
-                            'username': m.user.username if m.user else '',
-                            'nickname': m.user.nickname if m.user else '',
-                            'avatar': m.user.avatar if m.user else '',
-                        }
-                        for m in members
-                    ],
-                    'created_at': ledger.created_at.isoformat() if ledger.created_at else None,
-                })
+            if ledger.id in seen or _is_personal_ledger(ledger):
+                continue
+            seen.add(ledger.id)
+            role = get_user_ledger_role(ledger.id, user_id)
+            member_count = LedgerMember.query.filter_by(ledger_id=ledger.id).count()
+            income = db.session.query(db.func.sum(Transaction.amount)).filter(
+                Transaction.ledger_id == ledger.id,
+                Transaction.type == 'income',
+                Transaction.date.startswith(month),
+                stats_filter
+            ).scalar() or 0
+            expense = db.session.query(db.func.sum(Transaction.amount)).filter(
+                Transaction.ledger_id == ledger.id,
+                Transaction.type == 'expense',
+                Transaction.date.startswith(month),
+                stats_filter
+            ).scalar() or 0
+            balance_income = db.session.query(db.func.sum(Transaction.amount)).filter(
+                Transaction.ledger_id == ledger.id,
+                Transaction.type == 'income',
+                stats_filter
+            ).scalar() or 0
+            balance_expense = db.session.query(db.func.sum(Transaction.amount)).filter(
+                Transaction.ledger_id == ledger.id,
+                Transaction.type == 'expense',
+                stats_filter
+            ).scalar() or 0
+            members = LedgerMember.query.filter_by(ledger_id=ledger.id).limit(5).all()
+            result.append({
+                'id': ledger.id,
+                'name': ledger.name,
+                'description': ledger.description,
+                'currency': ledger.currency,
+                'owner_id': ledger.owner_id,
+                'owner_name': ledger.owner.username if ledger.owner else None,
+                'role': role,
+                'member_count': member_count,
+                'is_personal': False,
+                'share_enabled': True,
+                'balance': float(balance_income) - float(balance_expense),
+                'month_income': float(income),
+                'month_expense': float(expense),
+                'is_current': ledger.id == current_ledger_id,
+                'members': [
+                    {
+                        'user_id': m.user_id,
+                        'username': m.user.username if m.user else '',
+                        'nickname': m.user.nickname if m.user else '',
+                        'avatar': m.user.avatar if m.user else '',
+                    }
+                    for m in members
+                ],
+                'created_at': ledger.created_at.isoformat() if ledger.created_at else None,
+            })
         return jsonify({'success': True, 'ledgers': result})
     except Exception as e:
         app.logger.error(f"获取账本列表失败: {e}")
@@ -93,6 +108,9 @@ def create_ledger():
         if not name:
             return jsonify({'success': False, 'message': '账本名称不能为空'}), 400
         user_id = session.get('user_id')
+        user = User.query.get(user_id)
+        if user and name == f"{user.username}的个人账本":
+            return jsonify({'success': False, 'message': '该名称已保留给个人模式，请换一个账本名称'}), 400
         ledger = Ledger(name=name, description=data.get('description', ''), owner_id=user_id, currency=data.get('currency', 'CNY'))
         db.session.add(ledger)
         db.session.flush()
@@ -101,7 +119,9 @@ def create_ledger():
         db.session.commit()
         return jsonify({'success': True, 'message': '账本创建成功', 'ledger': {
             'id': ledger.id, 'name': ledger.name, 'description': ledger.description,
-            'currency': ledger.currency, 'owner_id': ledger.owner_id, 'role': 'manager'
+            'currency': ledger.currency, 'owner_id': ledger.owner_id, 'role': 'manager',
+            'is_personal': _is_personal_ledger(ledger),
+            'share_enabled': _ledger_share_enabled(ledger)
         }}), 201
     except Exception as e:
         db.session.rollback()
@@ -124,6 +144,8 @@ def get_ledger(ledger_id):
             'currency': ledger.currency, 'owner_id': ledger.owner_id,
             'owner_name': ledger.owner.username if ledger.owner else None,
             'role': role, 'member_count': member_count,
+            'is_personal': _is_personal_ledger(ledger),
+            'share_enabled': _ledger_share_enabled(ledger),
             'created_at': ledger.created_at.isoformat() if ledger.created_at else None,
         }})
     except Exception as e:
@@ -189,6 +211,14 @@ def switch_ledger(ledger_id):
         has_access, role, error = require_ledger_access(ledger_id, 'viewer')
         if not has_access:
             return error
+        ledger = Ledger.query.get_or_404(ledger_id)
+        if _is_personal_ledger(ledger):
+            session.pop('active_ledger_id', None)
+            from .routes_miniapp import set_token_active_ledger
+            auth_header = request.headers.get('Authorization', '')
+            if auth_header:
+                set_token_active_ledger(auth_header, None)
+            return jsonify({'success': True, 'message': '已切换到个人模式', 'role': 'manager'})
         session['active_ledger_id'] = ledger_id
         # Also update token store for mini app persistence
         from .routes_miniapp import set_token_active_ledger
@@ -207,6 +237,10 @@ def switch_to_personal():
     """切换到个人模式"""
     try:
         session.pop('active_ledger_id', None)
+        from .routes_miniapp import set_token_active_ledger
+        auth_header = request.headers.get('Authorization', '')
+        if auth_header:
+            set_token_active_ledger(auth_header, None)
         return jsonify({'success': True, 'message': '已切换到个人模式'})
     except Exception as e:
         app.logger.error(f"切换个人模式失败: {e}")
@@ -230,7 +264,18 @@ def list_members(ledger_id):
             'id': m.id, 'user_id': m.user_id, 'username': m.user.username if m.user else '未知',
             'role': m.role, 'joined_at': m.joined_at.isoformat() if m.joined_at else None
         } for m in members]
-        return jsonify({'success': True, 'owner': owner_info, 'members': member_list})
+        return jsonify({
+            'success': True,
+            'ledger': {
+                'id': ledger.id,
+                'name': ledger.name,
+                'role': role,
+                'is_personal': _is_personal_ledger(ledger),
+                'share_enabled': _ledger_share_enabled(ledger),
+            },
+            'owner': owner_info,
+            'members': member_list,
+        })
     except Exception as e:
         app.logger.error(f"获取成员列表失败: {e}")
         return jsonify({'success': False, 'message': '获取成员列表失败'}), 500
@@ -244,9 +289,12 @@ def add_member(ledger_id):
         has_access, role, error = require_ledger_access(ledger_id, 'manager')
         if not has_access:
             return error
+        ledger = Ledger.query.get_or_404(ledger_id)
+        if not _ledger_share_enabled(ledger):
+            return jsonify({'success': False, 'message': '个人模式不支持添加成员或分享加入'}), 403
         data = request.get_json()
         username = data.get('username', '').strip()
-        new_role = data.get('role', 'viewer')
+        new_role = data.get('role', 'editor')
         if not username:
             return jsonify({'success': False, 'message': '用户名不能为空'}), 400
         if new_role not in ('viewer', 'editor', 'manager'):
@@ -276,6 +324,8 @@ def update_member_role(ledger_id, user_id):
         if not has_access:
             return error
         ledger = Ledger.query.get_or_404(ledger_id)
+        if not _ledger_share_enabled(ledger):
+            return jsonify({'success': False, 'message': '个人模式不支持成员管理'}), 403
         if ledger.owner_id == user_id:
             return jsonify({'success': False, 'message': '不能修改所有者的角色'}), 400
         member = LedgerMember.query.filter_by(ledger_id=ledger_id, user_id=user_id).first_or_404()
@@ -301,6 +351,8 @@ def remove_member(ledger_id, user_id):
         if not has_access:
             return error
         ledger = Ledger.query.get_or_404(ledger_id)
+        if not _ledger_share_enabled(ledger):
+            return jsonify({'success': False, 'message': '个人模式不支持成员管理'}), 403
         if ledger.owner_id == user_id:
             return jsonify({'success': False, 'message': '不能移除所有者'}), 400
         member = LedgerMember.query.filter_by(ledger_id=ledger_id, user_id=user_id).first_or_404()
@@ -323,8 +375,11 @@ def list_invite_codes(ledger_id):
         has_access, role, error = require_ledger_access(ledger_id, 'viewer')
         if not has_access:
             return error
+        ledger = Ledger.query.get_or_404(ledger_id)
+        if not _ledger_share_enabled(ledger):
+            return jsonify({'success': True, 'share_enabled': False, 'invite_codes': []})
         codes = InviteCode.query.filter_by(ledger_id=ledger_id).order_by(InviteCode.created_at.desc()).all()
-        return jsonify({'success': True, 'invite_codes': [{
+        return jsonify({'success': True, 'share_enabled': True, 'invite_codes': [{
             'id': c.id, 'code': c.code, 'created_by': c.created_by,
             'creator_name': c.creator.username if c.creator else None,
             'max_uses': c.max_uses, 'used_count': c.used_count,
@@ -344,6 +399,9 @@ def create_invite_code(ledger_id):
         has_access, role, error = require_ledger_access(ledger_id, 'manager')
         if not has_access:
             return error
+        ledger = Ledger.query.get_or_404(ledger_id)
+        if not _ledger_share_enabled(ledger):
+            return jsonify({'success': False, 'message': '个人模式不支持生成邀请码'}), 403
         data = request.get_json()
         code = secrets.token_urlsafe(16)
         max_uses = data.get('max_uses', 0)
@@ -356,7 +414,10 @@ def create_invite_code(ledger_id):
         db.session.commit()
         return jsonify({'success': True, 'message': '邀请码创建成功', 'invite_code': {
             'id': invite.id, 'code': invite.code, 'max_uses': invite.max_uses,
-            'expires_at': expire_at.isoformat() if expire_at else None
+            'used_count': invite.used_count,
+            'expires_at': expire_at.isoformat() if expire_at else None,
+            'is_active': invite.is_active,
+            'created_at': invite.created_at.isoformat() if invite.created_at else None
         }}), 201
     except Exception as e:
         db.session.rollback()
@@ -403,6 +464,8 @@ def validate_invite_code():
         ledger = Ledger.query.get(invite.ledger_id)
         if not ledger or not ledger.is_active:
             return jsonify({'valid': False, 'message': '账本不存在或已停用'})
+        if not _ledger_share_enabled(ledger):
+            return jsonify({'valid': False, 'message': '个人模式不支持分享加入'})
         return jsonify({'valid': True, 'message': '邀请码有效', 'ledger_name': ledger.name, 'ledger_id': ledger.id})
     except Exception as e:
         app.logger.error(f"校验邀请码失败: {e}")
@@ -430,17 +493,24 @@ def join_ledger():
         ledger = Ledger.query.get(invite.ledger_id)
         if not ledger or not ledger.is_active:
             return jsonify({'success': False, 'message': '账本不存在或已停用'}), 404
+        if not _ledger_share_enabled(ledger):
+            return jsonify({'success': False, 'message': '个人模式不支持分享加入'}), 400
         user_id = session.get('user_id')
         existing = LedgerMember.query.filter_by(ledger_id=invite.ledger_id, user_id=user_id).first()
         if existing:
             return jsonify({'success': False, 'message': '您已经是该账本的成员'}), 400
-        member = LedgerMember(ledger_id=invite.ledger_id, user_id=user_id, role='viewer')
+        member = LedgerMember(ledger_id=invite.ledger_id, user_id=user_id, role='editor')
         db.session.add(member)
         invite.used_count += 1
         db.session.commit()
         session['active_ledger_id'] = invite.ledger_id
+        try:
+            from .routes_miniapp import set_token_active_ledger
+            set_token_active_ledger(request.headers.get('Authorization', ''), invite.ledger_id)
+        except Exception:
+            pass
         return jsonify({'success': True, 'message': f'已加入账本「{ledger.name}」', 'ledger': {
-            'id': ledger.id, 'name': ledger.name, 'role': 'viewer'
+            'id': ledger.id, 'name': ledger.name, 'role': 'editor'
         }})
     except Exception as e:
         db.session.rollback()
@@ -463,7 +533,10 @@ def get_json_data():
         elif user_id and is_admin and not self_view:
             transactions = Transaction.query.order_by(Transaction.id.desc()).all()
         elif user_id:
-            transactions = Transaction.query.filter(Transaction.user_id == user_id).order_by(Transaction.id.desc()).all()
+            transactions = Transaction.query.filter(
+                Transaction.user_id == user_id,
+                Transaction.ledger_id.is_(None)
+            ).order_by(Transaction.id.desc()).all()
         else:
             transactions = Transaction.query.order_by(Transaction.id.desc()).all()
         categories = [c.name for c in Category.query.all()]

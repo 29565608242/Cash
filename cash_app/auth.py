@@ -23,6 +23,7 @@ def _get_user_from_token():
     session['user_id'] = user.id
     session['is_admin'] = bool(user.is_admin)
     session.setdefault('self_view', True)
+    session.pop('active_ledger_id', None)
     # Restore active_ledger_id from token store
     try:
         from .routes_miniapp import _prune_token, _extract_token
@@ -37,7 +38,10 @@ def _get_user_from_token():
 def login_required(f):
     @wraps(f)
     def decorated_function(*args, **kwargs):
-        if not session.get('user_id'):
+        if request.headers.get('Authorization'):
+            if not _get_user_from_token():
+                return jsonify({'success': False, 'message': '登录已过期，请重新登录'}), 401
+        elif not session.get('user_id'):
             _get_user_from_token()
         if not session.get('user_id'):
             if request.path.startswith('/api/'):
@@ -51,7 +55,10 @@ def login_required(f):
 def admin_required(f):
     @wraps(f)
     def decorated_admin(*args, **kwargs):
-        if not session.get('user_id'):
+        if request.headers.get('Authorization'):
+            if not _get_user_from_token():
+                return jsonify({'success': False, 'message': '登录已过期，请重新登录'}), 401
+        elif not session.get('user_id'):
             _get_user_from_token()
         if not session.get('user_id') or not session.get('is_admin'):
             if request.path.startswith('/api/'):
@@ -64,9 +71,13 @@ def admin_required(f):
 
 @app.before_request
 def load_logged_in_user():
+    if request.headers.get('Authorization'):
+        g.user = _get_user_from_token()
+        return
+
     user_id = session.get('user_id')
     if user_id is None:
-        g.user = _get_user_from_token()
+        g.user = None
     else:
         g.user = User.query.get(user_id)
 
@@ -107,7 +118,7 @@ def require_ledger_access(ledger_id, min_role='viewer'):
 
 
 def get_current_ledger_id():
-    """获取当前活动账本 ID，从 session 读取，回退到用户第一个账本"""
+    """获取当前活动账本 ID；没有显式选择账本时表示个人模式。"""
     ledger_id = session.get('active_ledger_id')
     user_id = session.get('user_id')
     if not user_id:
@@ -117,22 +128,16 @@ def get_current_ledger_id():
         return None
 
     if ledger_id:
-        member = LedgerMember.query.filter_by(ledger_id=ledger_id, user_id=user_id).first()
-        if member:
-            return ledger_id
-        owned = Ledger.query.filter_by(id=ledger_id, owner_id=user_id).first()
-        if owned:
-            return ledger_id
+        ledger = Ledger.query.get(ledger_id)
+        if ledger and ledger.is_active:
+            if ledger.owner and ledger.name == f"{ledger.owner.username}的个人账本":
+                session.pop('active_ledger_id', None)
+                return None
+            member = LedgerMember.query.filter_by(ledger_id=ledger_id, user_id=user_id).first()
+            if member or ledger.owner_id == user_id:
+                return ledger_id
 
-    membership = LedgerMember.query.filter_by(user_id=user_id).first()
-    if membership:
-        session['active_ledger_id'] = membership.ledger_id
-        return membership.ledger_id
-
-    owned = Ledger.query.filter_by(owner_id=user_id).first()
-    if owned:
-        session['active_ledger_id'] = owned.id
-        return owned.id
+    session.pop('active_ledger_id', None)
     return None
 
 

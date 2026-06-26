@@ -23,8 +23,9 @@ config = get_config()
 
 def _import_models():
     """延迟导入避免循环导入"""
-    import app as _app
-    return _app.db, _app.Transaction, _app.Category, _app.Account, _app.ExportTask, _app.FileUpload
+    from cash_app.app_state import db
+    from cash_app.models import Account, Category, ExportTask, FileUpload, Transaction
+    return db, Transaction, Category, Account, ExportTask, FileUpload
 
 
 def _login_required(f):
@@ -98,8 +99,8 @@ TYPE_MAPPING = {
 @_login_required
 def data_tools_page():
     """数据工具页面（导入/导出）"""
-    from app import Account  # 避免循环导入
-    from app import get_current_ledger_id
+    from cash_app.auth import get_current_ledger_id
+    from cash_app.models import Account
     current_ledger_id = get_current_ledger_id()
     if current_ledger_id:
         accounts = Account.query.filter_by(ledger_id=current_ledger_id).all()
@@ -300,7 +301,7 @@ def confirm_import():
                     exchange_rate = round(amount / original_amount, 6) if original_amount else None
 
             # 创建交易记录
-            from app import get_current_ledger_id
+            from cash_app.auth import get_current_ledger_id
             from cash_app.support import log_money_change
             current_ledger_id = get_current_ledger_id()
             # 获取或创建账户
@@ -411,7 +412,7 @@ def create_export():
         return jsonify({'success': False, 'message': '系统未配置 SMTP，无法发送邮件'}), 400
 
     # 构建查询（按当前账本过滤）
-    from app import get_current_ledger_id
+    from cash_app.auth import get_current_ledger_id
     current_ledger_id = get_current_ledger_id()
     query = Transaction.query
     if current_ledger_id:

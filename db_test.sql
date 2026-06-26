@@ -197,7 +197,7 @@ CREATE TABLE `ledger_members` (
   `id` int NOT NULL AUTO_INCREMENT,
   `ledger_id` int NOT NULL,
   `user_id` int NOT NULL,
-  `role` varchar(20) DEFAULT 'viewer' COMMENT 'viewer/editor/manager',
+  `role` varchar(20) DEFAULT 'editor' COMMENT 'viewer/editor/manager',
   `joined_at` datetime DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`) USING BTREE,
   UNIQUE KEY `uq_ledger_user` (`ledger_id`, `user_id`),

@@ -3,8 +3,8 @@
     <view class="card">
       <input class="input" v-model="form.username" placeholder="用户名" />
       <input class="input" v-model="form.email" placeholder="邮箱（可选）" />
-      <input class="input" v-model="form.password" type="password" placeholder="密码（至少6位）" />
-      <input class="input" v-model="form.confirm" type="password" placeholder="确认密码" />
+      <input class="input" v-model="form.password" type="password" password="true" placeholder="密码（至少6位）" />
+      <input class="input" v-model="form.confirm" type="password" password="true" placeholder="确认密码" />
       <view class="btn-primary" @tap="submit">注册并登录</view>
       <view class="btn-line" @tap="goLogin">去登录</view>
     </view>

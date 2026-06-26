@@ -34,10 +34,10 @@ def get_balance():
         ).scalar() or 0
     else:
         income = db.session.query(db.func.sum(Transaction.amount)).filter(
-            Transaction.type == 'income', Transaction.user_id == user_id, stats_filter
+            Transaction.type == 'income', Transaction.user_id == user_id, Transaction.ledger_id.is_(None), stats_filter
         ).scalar() or 0
         expense = db.session.query(db.func.sum(Transaction.amount)).filter(
-            Transaction.type == 'expense', Transaction.user_id == user_id, stats_filter
+            Transaction.type == 'expense', Transaction.user_id == user_id, Transaction.ledger_id.is_(None), stats_filter
         ).scalar() or 0
 
     return float(income - expense)
@@ -59,7 +59,7 @@ def filter_transactions_by_period_orm(period=None, date=None):
         if current_ledger_id:
             query = query.filter(Transaction.ledger_id == current_ledger_id)
         elif user_id:
-            query = query.filter(Transaction.user_id == user_id)
+            query = query.filter(Transaction.user_id == user_id, Transaction.ledger_id.is_(None))
 
     if date:
         query = query.filter(Transaction.date == date)

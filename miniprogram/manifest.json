@@ -12,11 +12,20 @@
     }
   },
   "mp-weixin": {
-    "appid": "",
+    "appid": "wx09b197a4686d0bda",
     "setting": {
       "urlCheck": false,
       "es6": true
-    }
+    },
+    "permission": {
+      "scope.userLocation": {
+        "desc": "用于在记账时记录交易发生地点"
+      }
+    },
+    "requiredPrivateInfos": [
+      "getLocation",
+      "chooseLocation"
+    ]
   },
   "mp-alipay": {
     "appid": "",

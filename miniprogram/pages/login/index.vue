@@ -7,9 +7,14 @@
 
     <view class="card form">
       <input class="input" v-model="username" placeholder="用户名" />
-      <input class="input" v-model="password" type="password" placeholder="密码" />
+      <input class="input" v-model="password" type="password" password="true" placeholder="密码" />
 
       <view class="btn-primary" @tap="submitLogin">登录</view>
+      <view class="auth-links">
+        <text @tap="goForgotPassword">忘记密码</text>
+        <text class="divider">|</text>
+        <text @tap="goAccountPassword">修改账号密码</text>
+      </view>
       <view class="btn-ghost" @tap="goRegister">去注册</view>
     </view>
   </view>
@@ -46,6 +51,14 @@ async function submitLogin() {
 
 function goRegister() {
   uni.navigateTo({ url: '/pages/register/index' })
+}
+
+function goForgotPassword() {
+  uni.navigateTo({ url: '/pages/forgot-password/index' })
+}
+
+function goAccountPassword() {
+  uni.navigateTo({ url: '/pages/account-password/index' })
 }
 </script>
 
@@ -91,6 +104,22 @@ function goRegister() {
 
 .btn-primary {
   margin-top: 8rpx;
+}
+
+.auth-links {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 18rpx;
+  margin-top: 22rpx;
+  color: $primary;
+  font-size: 28rpx;
+  font-weight: 600;
+}
+
+.divider {
+  color: $text-light;
+  font-weight: 400;
 }
 
 .btn-ghost {

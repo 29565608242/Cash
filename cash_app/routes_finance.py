@@ -11,6 +11,15 @@ from .auth import login_required, require_ledger_access, get_current_ledger_id
 from .models import Account, Budget, BudgetCategoryItem, Category, Ledger, Loan, MoneyChangeLog, RecurringRule, Transaction, User
 from .support import log_money_change
 
+
+def _account_belongs_to_current_scope(account, user_id, current_ledger_id):
+    if not account:
+        return False
+    if current_ledger_id:
+        return account.ledger_id == current_ledger_id
+    return account.user_id == user_id and account.ledger_id is None
+
+
 def get_loan_base_query():
     """构建借贷基础查询（按权限过滤）"""
     user_id = session.get('user_id')
@@ -25,7 +34,7 @@ def get_loan_base_query():
     elif is_admin and not self_view:
         pass  # 管理员后台查看全部
     else:
-        query = query.filter(Loan.user_id == user_id)
+        query = query.filter(Loan.user_id == user_id, Loan.ledger_id.is_(None))
 
     return query
 
@@ -166,7 +175,7 @@ def create_loan():
         # 更新账户余额：lend=借出(余额减少), borrow=借入(余额增加)
         account = Account.query.filter_by(ledger_id=current_ledger_id, user_id=user_id).first()
         if not account:
-            account = Account.query.filter_by(user_id=user_id).first()
+            account = Account.query.filter_by(user_id=user_id, ledger_id=None).first()
         if account:
             balance_before = float(account.balance or 0)
             change = -amount if loan_type == 'lend' else amount
@@ -354,7 +363,7 @@ def repay_loan(loan_id):
         change = repay_amount if loan.type == 'lend' else -repay_amount
         account = Account.query.filter_by(ledger_id=loan.ledger_id, user_id=user_id).first()
         if not account:
-            account = Account.query.filter_by(user_id=user_id).first()
+            account = Account.query.filter_by(user_id=user_id, ledger_id=None).first()
         balance_before = float(account.balance or 0) if account else None
         if account:
             account.balance = balance_before + change
@@ -587,7 +596,7 @@ def list_recurring_rules():
         elif is_admin and not self_view:
             pass
         else:
-            query = query.filter(RecurringRule.user_id == user_id)
+            query = query.filter(RecurringRule.user_id == user_id, RecurringRule.ledger_id.is_(None))
 
         query = query.order_by(RecurringRule.id.desc())
         rules = query.all()
@@ -667,7 +676,7 @@ def create_recurring_rule():
         account_id = data.get('account_id')
         if account_id:
             acct = Account.query.get(account_id)
-            if not acct:
+            if not _account_belongs_to_current_scope(acct, user_id, current_ledger_id):
                 return jsonify({'success': False, 'message': '账户不存在'}), 400
         else:
             account_id = None
@@ -757,7 +766,13 @@ def update_recurring_rule(rule_id):
         if 'remark' in data:
             rule.remark = data['remark'].strip()
         if 'account_id' in data:
-            rule.account_id = data['account_id'] or None
+            account_id = data['account_id'] or None
+            if account_id:
+                current_ledger_id = get_current_ledger_id()
+                acct = Account.query.get(account_id)
+                if not _account_belongs_to_current_scope(acct, user_id, current_ledger_id):
+                    return jsonify({'success': False, 'message': '账户不存在'}), 400
+            rule.account_id = account_id
 
         rule.updated_at = datetime.now()
         db.session.commit()
@@ -848,7 +863,7 @@ def generate_recurring_bills():
         if current_ledger_id:
             query = query.filter(RecurringRule.ledger_id == current_ledger_id)
         elif not (is_admin and not self_view):
-            query = query.filter(RecurringRule.user_id == user_id)
+            query = query.filter(RecurringRule.user_id == user_id, RecurringRule.ledger_id.is_(None))
 
         # Also filter: end_date >= today or end_date is null
         query = query.filter(
@@ -901,7 +916,7 @@ def check_recurring_pending():
         if current_ledger_id:
             query = query.filter(RecurringRule.ledger_id == current_ledger_id)
         else:
-            query = query.filter(RecurringRule.user_id == user_id)
+            query = query.filter(RecurringRule.user_id == user_id, RecurringRule.ledger_id.is_(None))
 
         query = query.filter(
             db.or_(RecurringRule.end_date >= today_str, RecurringRule.end_date.is_(None))
@@ -989,6 +1004,8 @@ def get_current_budget():
         budget_filter = {'user_id': user_id, 'month': month}
         if current_ledger_id:
             budget_filter['ledger_id'] = current_ledger_id
+        else:
+            budget_filter['ledger_id'] = None
         if account_id:
             budget_filter['account_id'] = account_id
         else:
@@ -1004,7 +1021,7 @@ def get_current_budget():
         if current_ledger_id:
             expense_filter.append(Transaction.ledger_id == current_ledger_id)
         else:
-            expense_filter.append(Transaction.user_id == user_id)
+            expense_filter.extend([Transaction.user_id == user_id, Transaction.ledger_id.is_(None)])
         if account_id:
             expense_filter.append(Transaction.account_id == account_id)
 
@@ -1084,6 +1101,8 @@ def list_budgets():
         budget_filter = {'user_id': user_id, 'month': month}
         if current_ledger_id:
             budget_filter['ledger_id'] = current_ledger_id
+        else:
+            budget_filter['ledger_id'] = None
         budgets = Budget.query.filter_by(**budget_filter).all()
         result = []
         for b in budgets:
@@ -1123,7 +1142,7 @@ def save_budget():
         # 校验账户（account_id 为 0 或空时视为总账户）
         if account_id:
             acct = Account.query.filter_by(id=account_id).first()
-            if not acct or (current_ledger_id and acct.ledger_id != current_ledger_id):
+            if not _account_belongs_to_current_scope(acct, user_id, current_ledger_id):
                 return jsonify({'success': False, 'message': '账户不存在'}), 400
         else:
             account_id = None
@@ -1139,6 +1158,8 @@ def save_budget():
         budget_filter = {'user_id': user_id, 'month': month, 'account_id': account_id}
         if current_ledger_id:
             budget_filter['ledger_id'] = current_ledger_id
+        else:
+            budget_filter['ledger_id'] = None
         budget = Budget.query.filter_by(**budget_filter).first()
         if budget:
             budget.total_amount = total_amount
@@ -1221,7 +1242,7 @@ def get_accounts():
         if current_ledger_id:
             accounts = Account.query.filter_by(ledger_id=current_ledger_id).all()
         else:
-            accounts = Account.query.filter_by(user_id=user_id).all()
+            accounts = Account.query.filter_by(user_id=user_id, ledger_id=None).all()
         if not accounts:
             if current_ledger_id:
                 default_account = Account(name='默认账户', balance=0, account_type='cash', user_id=user_id, ledger_id=current_ledger_id)
@@ -1296,8 +1317,9 @@ def update_account(account_id):
             return jsonify({"success": False, "message": "管理员只能查看数据，不能修改账户"}), 403
 
         user_id = session.get('user_id')
+        current_ledger_id = get_current_ledger_id()
         account = Account.query.filter_by(id=account_id, user_id=user_id).first()
-        if not account:
+        if not _account_belongs_to_current_scope(account, user_id, current_ledger_id):
             return jsonify({"success": False, "message": "账户不存在"}), 404
 
         data = request.get_json()
@@ -1350,8 +1372,9 @@ def delete_account(account_id):
             return jsonify({"success": False, "message": "管理员只能查看数据，不能删除账户"}), 403
 
         user_id = session.get('user_id')
+        current_ledger_id = get_current_ledger_id()
         account = Account.query.filter_by(id=account_id, user_id=user_id).first()
-        if not account:
+        if not _account_belongs_to_current_scope(account, user_id, current_ledger_id):
             return jsonify({"success": False, "message": "账户不存在"}), 404
 
         if account.transactions.count() > 0:
@@ -1402,7 +1425,7 @@ def get_report(period):
             "net": income - expense,
             "count": len(transactions),
             "current_ledger_id": current_ledger_id,
-            "current_ledger_name": Ledger.query.get(current_ledger_id).name if current_ledger_id else None
+            "current_ledger_name": Ledger.query.get(current_ledger_id).name if current_ledger_id else '个人模式'
         })
     except Exception as e:
         app.logger.error(f"获取报表失败: {e}")
@@ -1464,7 +1487,7 @@ def get_advanced_report():
             query = query.filter(Transaction.ledger_id == current_ledger_id)
         elif user_id and not is_admin or (is_admin and self_view):
             # 普通用户或管理员 self_view 只看到自己的数据
-            query = query.filter(Transaction.user_id == user_id)
+            query = query.filter(Transaction.user_id == user_id, Transaction.ledger_id.is_(None))
 
         transactions = query.order_by(Transaction.date.desc(), Transaction.id.desc()).all()
         income = float(sum(t.amount for t in transactions if t.type == 'income'))
@@ -1601,7 +1624,7 @@ def download_report():
         if current_ledger_id:
             query = query.filter(Transaction.ledger_id == current_ledger_id)
         elif user_id and not is_admin or (is_admin and self_view):
-            query = query.filter(Transaction.user_id == user_id)
+            query = query.filter(Transaction.user_id == user_id, Transaction.ledger_id.is_(None))
 
         transactions = query.order_by(Transaction.date.asc(), Transaction.id.asc()).all()
 
@@ -1805,7 +1828,7 @@ def get_money_change_logs():
         elif current_ledger_id:
             query = query.filter(MoneyChangeLog.ledger_id == current_ledger_id)
         else:
-            query = query.filter(MoneyChangeLog.user_id == user_id)
+            query = query.filter(MoneyChangeLog.user_id == user_id, MoneyChangeLog.ledger_id.is_(None))
 
         if action_type:
             query = query.filter(MoneyChangeLog.action_type == action_type)

@@ -20,6 +20,14 @@
       </view>
     </view>
 
+    <view class="smart-entry" @tap="goSmartBookkeeping">
+      <view>
+        <text class="smart-title">自然语言导入账单</text>
+        <text class="smart-sub">一句话解析多笔收支</text>
+      </view>
+      <text class="smart-arrow">›</text>
+    </view>
+
     <view class="amount-card">
       <view class="amount-row">
         <picker mode="selector" :range="currencyLabels" :value="currencyIndex" @change="onCurrencyChange">
@@ -75,35 +83,21 @@
         </view>
       </picker>
 
-      <view v-if="tx.business_type === 'normal' && members.length" class="detail-row compact">
+      <view v-if="tx.business_type === 'normal' && members.length" class="detail-row" @tap="openMemberSelector('payer')">
         <text class="row-label">付款人</text>
-        <view class="member-chips">
-          <view
-            v-for="member in members"
-            :key="member.user_id"
-            :class="tx.payer_user_id === member.user_id ? 'member-chip active' : 'member-chip'"
-            @tap="tx.payer_user_id = member.user_id"
-          >
-            {{ memberLabel(member) }}
-          </view>
-        </view>
+        <text class="row-value">{{ payerText }}</text>
+        <text class="row-arrow">›</text>
       </view>
 
-      <view v-if="tx.business_type === 'normal' && tx.type === 'expense' && members.length" class="detail-row compact">
+      <view v-if="tx.business_type === 'normal' && tx.type === 'expense' && members.length" class="detail-row" @tap="openMemberSelector('participants')">
         <text class="row-label">参与人</text>
-        <view class="member-chips">
-          <view
-            v-for="member in members"
-            :key="member.user_id"
-            :class="participantIds.includes(member.user_id) ? 'member-chip active' : 'member-chip'"
-            @tap="toggleParticipant(member.user_id)"
-          >
-            {{ memberLabel(member) }}
-          </view>
-          <text class="split-tip" v-if="participantIds.length > 1">
+        <view class="row-value member-value">
+          <text>{{ participantText }}</text>
+          <text class="split-inline" v-if="participantIds.length > 1">
             共{{ participantIds.length }}人 · 平均 ¥{{ averageAmount }}
           </text>
         </view>
+        <text class="row-arrow">›</text>
       </view>
     </view>
 
@@ -160,6 +154,32 @@
     <view class="bottom-actions">
       <view class="secondary-btn" @tap="submit(true)">再记一笔</view>
       <view class="primary-btn" @tap="submit(false)">保存</view>
+    </view>
+
+    <view v-if="memberSelectMode" class="member-selector-mask" @tap="closeMemberSelector">
+      <view class="member-selector-panel" @tap.stop>
+        <view class="selector-head">
+          <text class="selector-title">{{ memberSelectTitle }}</text>
+          <text class="selector-done" @tap="closeMemberSelector">完成</text>
+        </view>
+        <view
+          v-if="memberSelectMode === 'participants'"
+          :class="participantIds.length === members.length ? 'selector-option active' : 'selector-option'"
+          @tap="selectAllParticipants"
+        >
+          <text>全员参与</text>
+          <text v-if="participantIds.length === members.length" class="option-check">✓</text>
+        </view>
+        <view
+          v-for="member in members"
+          :key="member.user_id"
+          :class="isMemberSelected(member) ? 'selector-option active' : 'selector-option'"
+          @tap="chooseMember(member)"
+        >
+          <text>{{ memberName(member) }}</text>
+          <text v-if="isMemberSelected(member)" class="option-check">✓</text>
+        </view>
+      </view>
     </view>
   </view>
 </template>
@@ -247,6 +267,7 @@ const categories = ref([])
 const accounts = ref([])
 const members = ref([])
 const participantIds = ref([])
+const memberSelectMode = ref('')
 const needsReimbursement = ref(false)
 const includeInStats = ref(true)
 const attachments = ref([])
@@ -297,6 +318,24 @@ const targetAccountText = computed(() => {
   if (!targetAccounts.value.length) return '暂无可用账户'
   return targetAccountOptions.value[targetAccountIndex.value] || '请选择'
 })
+const payerIndex = computed(() => {
+  const idx = members.value.findIndex((item) => item.user_id === tx.payer_user_id)
+  return idx >= 0 ? idx : 0
+})
+const payerText = computed(() => {
+  if (!members.value.length) return '暂无成员'
+  const member = members.value[payerIndex.value]
+  return member ? memberName(member) : '请选择'
+})
+const participantText = computed(() => {
+  if (!members.value.length) return '暂无成员'
+  const selected = members.value.filter((item) => participantIds.value.includes(item.user_id))
+  if (!selected.length) return '请选择参与人'
+  if (selected.length === members.value.length) return '全部成员'
+  const names = selected.map((item) => memberName(item))
+  return names.length > 2 ? `${names.slice(0, 2).join('、')}等${names.length}人` : names.join('、')
+})
+const memberSelectTitle = computed(() => (memberSelectMode.value === 'payer' ? '选择付款人' : '选择参与人'))
 
 const dateLabel = computed(() => (tx.date === today() ? '今天' : tx.date))
 const averageAmount = computed(() => {
@@ -380,9 +419,8 @@ function categoryIcon(category) {
   return iconMap[category] || (category || '记').slice(0, 1)
 }
 
-function memberLabel(member) {
-  const name = member.nickname || member.username || '我'
-  return name.slice(0, 1).toUpperCase()
+function memberName(member) {
+  return member.nickname || member.username || '我'
 }
 
 function normalizeMembers(payload) {
@@ -412,15 +450,52 @@ function normalizeMembers(payload) {
 
 function resetMembers(list) {
   members.value = list
-  if (!members.value.length) return
+  if (!members.value.length) {
+    tx.payer_user_id = null
+    participantIds.value = []
+    memberSelectMode.value = ''
+    return
+  }
   if (!members.value.some((item) => item.user_id === tx.payer_user_id)) {
     const currentUserId = store.state.user && store.state.user.id
     const mine = members.value.find((item) => item.user_id === currentUserId)
     tx.payer_user_id = (mine || members.value[0]).user_id
   }
+  const validIds = new Set(members.value.map((item) => item.user_id))
+  participantIds.value = participantIds.value.filter((id) => validIds.has(id))
   if (!participantIds.value.length) {
     participantIds.value = members.value.map((item) => item.user_id)
   }
+}
+
+function openMemberSelector(mode) {
+  memberSelectMode.value = mode
+}
+
+function closeMemberSelector() {
+  memberSelectMode.value = ''
+}
+
+function isMemberSelected(member) {
+  if (memberSelectMode.value === 'payer') return tx.payer_user_id === member.user_id
+  return participantIds.value.includes(member.user_id)
+}
+
+function chooseMember(member) {
+  if (memberSelectMode.value === 'payer') {
+    selectPayer(member.user_id)
+    return
+  }
+  toggleParticipant(member.user_id)
+}
+
+function selectPayer(userId) {
+  tx.payer_user_id = userId
+  closeMemberSelector()
+}
+
+function selectAllParticipants() {
+  participantIds.value = members.value.map((item) => item.user_id)
 }
 
 function toggleParticipant(userId) {
@@ -547,6 +622,10 @@ function goRecurring() {
   uni.navigateTo({ url: '/pages/recurring-add/index' })
 }
 
+function goSmartBookkeeping() {
+  uni.navigateTo({ url: '/pages/smart-bookkeeping/index' })
+}
+
 function goBack() {
   uni.switchTab({ url: '/pages/ledgers/index' })
 }
@@ -599,19 +678,22 @@ async function switchLedger() {
   try {
     const res = await api.get(endpoints.ledgers)
     const list = res.ledgers || []
-    if (!list.length) {
-      uni.switchTab({ url: '/pages/ledgers/index' })
-      return
-    }
+    const options = [{ id: null, name: '个人模式' }, ...list]
     uni.showActionSheet({
-      itemList: list.map((item) => item.name),
+      itemList: options.map((item) => item.name),
       success: async (event) => {
-        const ledger = list[event.tapIndex]
-        await api.post(`${endpoints.ledgers}/${ledger.id}/switch`, {})
-        currentLedgerId.value = ledger.id
-        currentLedgerName.value = ledger.name
+        const ledger = options[event.tapIndex]
+        if (ledger.id) {
+          await api.post(`${endpoints.ledgers}/${ledger.id}/switch`, {})
+          currentLedgerId.value = ledger.id
+          currentLedgerName.value = ledger.name
+        } else {
+          await api.post(`${endpoints.ledgers}/personal`, {})
+          currentLedgerId.value = null
+          currentLedgerName.value = '个人模式'
+        }
         await loadAll()
-        uni.showToast({ title: '已切换账本', icon: 'success' })
+        uni.showToast({ title: ledger.id ? '已切换账本' : '已切换个人模式', icon: 'success' })
       },
     })
   } catch (error) {
@@ -784,8 +866,40 @@ async function submit(keepAdding) {
   background: #19acd0;
 }
 
+.smart-entry {
+  margin: 18rpx 24rpx 4rpx;
+  min-height: 88rpx;
+  padding: 0 24rpx;
+  border-radius: 12rpx;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: linear-gradient(135deg, #f0fbff 0%, #fff8fb 100%);
+  border: 1px solid #d8f0f6;
+}
+
+.smart-title {
+  display: block;
+  color: #0f3c5c;
+  font-size: 30rpx;
+  font-weight: 800;
+}
+
+.smart-sub {
+  display: block;
+  margin-top: 4rpx;
+  color: #7f8b96;
+  font-size: 24rpx;
+}
+
+.smart-arrow {
+  color: #18a8ce;
+  font-size: 48rpx;
+  line-height: 1;
+}
+
 .amount-card {
-  margin: 12rpx 24rpx 26rpx;
+  margin: 18rpx 24rpx 26rpx;
   padding: 26rpx 24rpx;
   border-radius: 14rpx;
   background: #fff;
@@ -958,37 +1072,89 @@ async function submit(keepAdding) {
   font-size: 46rpx;
 }
 
-.member-chips {
-  flex: 1;
+.member-value {
   display: flex;
-  flex-wrap: wrap;
-  gap: 12rpx;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 4rpx;
 }
 
-.member-chip {
-  width: 58rpx;
-  height: 58rpx;
-  border-radius: 29rpx;
-  background: #e7eaee;
-  color: #7f8b96;
+.split-inline {
+  color: #8a98a8;
+  font-size: 24rpx;
+}
+
+.member-selector-mask {
+  position: fixed;
+  left: 0;
+  right: 0;
+  top: 0;
+  bottom: 0;
+  z-index: 99;
+  display: flex;
+  align-items: flex-end;
+  background: rgba(17, 24, 39, 0.36);
+}
+
+.member-selector-panel {
+  width: 100%;
+  max-height: 72vh;
+  overflow-y: auto;
+  border-radius: 24rpx 24rpx 0 0;
+  background: #fff;
+  box-shadow: 0 -16rpx 40rpx rgba(15, 23, 42, 0.18);
+  padding-bottom: calc(24rpx + env(safe-area-inset-bottom));
+}
+
+.selector-head {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  height: 98rpx;
+  padding: 0 30rpx;
   display: flex;
   align-items: center;
-  justify-content: center;
-  font-size: 24rpx;
+  justify-content: space-between;
+  background: #fff;
+  border-bottom: 1px solid #edf1f4;
+}
+
+.selector-title {
+  color: #0f3c5c;
+  font-size: 32rpx;
   font-weight: 800;
 }
 
-.member-chip.active {
-  background: #22b7d7;
-  color: #fff;
+.selector-done {
+  color: #1395d6;
+  font-size: 30rpx;
+  font-weight: 700;
 }
 
-.split-tip {
-  height: 58rpx;
+.selector-option {
+  min-height: 92rpx;
+  padding: 0 30rpx;
   display: flex;
   align-items: center;
-  color: #8a98a8;
-  font-size: 26rpx;
+  justify-content: space-between;
+  color: #0f3c5c;
+  font-size: 30rpx;
+  border-bottom: 1px solid #e8f3f7;
+}
+
+.selector-option:last-child {
+  border-bottom: 0;
+}
+
+.selector-option.active {
+  color: #1199bd;
+  background: #e8fbfd;
+  font-weight: 700;
+}
+
+.option-check {
+  color: #1199bd;
+  font-weight: 800;
 }
 
 .tag-panel {

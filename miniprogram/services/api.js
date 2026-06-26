@@ -109,6 +109,9 @@ export const endpoints = {
     login: '/api/auth/login',
     register: '/api/auth/register',
     logout: '/api/auth/logout',
+    forgotPassword: '/api/auth/forgot-password',
+    resetPassword: '/api/auth/reset-password',
+    changePassword: '/api/auth/change-password',
   },
   user: {
     profile: '/api/user/profile',

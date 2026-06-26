@@ -2,7 +2,6 @@
   <view class="page-wrap ledger-page">
     <view class="hero-band">
       <view>
-        <text class="eyebrow">AA 账本</text>
         <text class="hero-title">账本列表</text>
       </view>
       <view class="hero-actions">
@@ -51,6 +50,15 @@
       </view>
     </view>
 
+    <view :class="personalModeActive ? 'personal-mode-card active' : 'personal-mode-card'" @tap="selectPersonalMode">
+      <view>
+        <text class="share-tag">个人模式</text>
+        <text class="ledger-name">个人记账</text>
+        <text class="personal-mode-sub">只管理自己的数据，不参与成员分享</text>
+      </view>
+      <text class="current-tag" v-if="personalModeActive">当前</text>
+    </view>
+
     <view class="ledger-list">
       <view
         v-for="item in filteredLedgers"
@@ -61,7 +69,7 @@
         <view class="card-bg"></view>
         <view class="ledger-top">
           <view>
-            <text class="share-tag">{{ item.member_count > 1 ? '共享' : '个人' }}</text>
+            <text class="share-tag">{{ item.is_personal ? '个人' : '共享' }}</text>
             <text class="ledger-name">{{ item.name }}</text>
           </view>
           <text class="current-tag" v-if="item.is_current">当前</text>
@@ -72,13 +80,13 @@
             <view v-for="member in visibleMembers(item)" :key="member.user_id" class="avatar">
               {{ avatarText(member) }}
             </view>
-            <view class="avatar add" @tap.stop="goMembers(item.id)">+</view>
+            <view v-if="item.share_enabled" class="avatar add" @tap.stop="goMembers(item.id)">+</view>
           </view>
           <text class="created">{{ formatCreatedAt(item.created_at) }} 创建</text>
         </view>
 
         <view class="ledger-footer">
-          <view class="footer-action" @tap.stop="goMembers(item.id)">设置</view>
+          <view v-if="item.share_enabled" class="footer-action" @tap.stop="goMembers(item.id)">成员</view>
           <view class="footer-action" @tap.stop="goReports(item)">报表</view>
           <view v-if="item.role === 'manager'" class="footer-action danger" @tap.stop="removeLedger(item)">删除</view>
           <view class="balance-block">
@@ -93,8 +101,8 @@
         </view>
       </view>
       <view v-if="!filteredLedgers.length" class="empty-state">
-        <text class="empty-title">暂无账本</text>
-        <text class="empty-sub">创建一个账本后即可开始记账</text>
+        <text class="empty-title">暂无共享账本</text>
+        <text class="empty-sub">个人记账可直接使用个人模式</text>
       </view>
     </view>
   </view>
@@ -107,6 +115,7 @@ import { api, endpoints } from '../../services/api'
 import { confirmModal, formatMoney, showError } from '../../services/utils'
 
 const ledgers = ref([])
+const personalModeActive = ref(true)
 const keyword = ref('')
 const sortMode = ref('active')
 const showCreatePanel = ref(false)
@@ -140,10 +149,26 @@ const filteredLedgers = computed(() => {
 
 async function loadLedgers() {
   try {
-    const res = await api.get(endpoints.ledgers)
-    ledgers.value = res.ledgers || []
+    const [ledgerRes, dashboardRes] = await Promise.all([
+      api.get(endpoints.ledgers),
+      api.get(endpoints.miniapp.dashboard),
+    ])
+    ledgers.value = ledgerRes.ledgers || []
+    const dashboard = dashboardRes.data || {}
+    personalModeActive.value = !dashboard.current_ledger_id
   } catch (error) {
     showError(error, '加载账本失败')
+  }
+}
+
+async function selectPersonalMode() {
+  try {
+    await api.post(`${endpoints.ledgers}/personal`, {})
+    personalModeActive.value = true
+    ledgers.value = ledgers.value.map((ledger) => ({ ...ledger, is_current: false }))
+    uni.switchTab({ url: '/pages/transaction-add/index' })
+  } catch (error) {
+    showError(error, '切换个人模式失败')
   }
 }
 
@@ -170,6 +195,7 @@ async function selectLedger(item) {
       ...ledger,
       is_current: ledger.id === item.id,
     }))
+    personalModeActive.value = false
     uni.switchTab({ url: '/pages/transaction-add/index' })
   } catch (error) {
     showError(error, '切换账本失败')
@@ -430,6 +456,31 @@ onShow(loadLedgers)
 
 .ledger-list {
   padding: 0 24rpx;
+}
+
+.personal-mode-card {
+  margin: 0 24rpx 24rpx;
+  min-height: 152rpx;
+  padding: 24rpx;
+  border-radius: 12rpx;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: #fff;
+  border: 1px solid #dce9ef;
+  box-shadow: 0 10rpx 24rpx rgba(18, 84, 110, 0.08);
+}
+
+.personal-mode-card.active {
+  border-color: #13a7cb;
+  background: linear-gradient(135deg, #f1fbff 0%, #fff 100%);
+}
+
+.personal-mode-sub {
+  display: block;
+  margin-top: 8rpx;
+  color: #7d8996;
+  font-size: 24rpx;
 }
 
 .ledger-card {

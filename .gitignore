@@ -2,3 +2,6 @@ logs/
 _pycache__/
 data/
 *.pyc
+__pycache__/
+miniprogram/node_modules/
+miniprogram/dist/

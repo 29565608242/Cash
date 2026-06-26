@@ -1,13 +1,6 @@
 <template>
   <view class="profile-page">
     <view class="profile-hero">
-      <view class="hero-icons">
-        <text class="scan" @tap="showPending('扫一扫')">□</text>
-        <view class="right-icons">
-          <text @tap="showPending('消息通知')">铃</text>
-          <text @tap="showSettings">设</text>
-        </view>
-      </view>
       <text class="hero-title">个人中心</text>
       <view class="user-row">
         <view class="avatar-wrap" @tap="changeAvatar">
@@ -41,11 +34,6 @@
         <text class="menu-icon">卡</text>
         <text class="menu-title">资金账户</text>
         <text class="menu-desc">与当前账本联动</text>
-        <text class="feature-arrow">›</text>
-      </view>
-      <view class="menu-item" @tap="go('/pages/smart-bookkeeping/index')">
-        <text class="menu-icon">AI</text>
-        <text class="menu-title">AI 自动记账</text>
         <text class="feature-arrow">›</text>
       </view>
       <view class="menu-item" @tap="go('/pages/ledger-members/index')">
@@ -112,8 +100,8 @@
         <text class="feature-arrow">›</text>
       </view>
       <view v-if="showPasswordPanel" class="inline-form">
-        <input class="input" v-model="password.old_password" type="password" placeholder="旧密码" />
-        <input class="input" v-model="password.new_password" type="password" placeholder="新密码（至少6位）" />
+        <input class="input" v-model="password.old_password" type="password" password="true" placeholder="旧密码" />
+        <input class="input" v-model="password.new_password" type="password" password="true" placeholder="新密码（至少6位）" />
         <view class="btn-primary" @tap="changePassword">保存新密码</view>
       </view>
       <view class="menu-item" @tap="go('/pages/about/index')">
@@ -178,14 +166,6 @@ const avatarSource = computed(() => {
 
 function go(url) {
   uni.navigateTo({ url })
-}
-
-function showPending(name) {
-  uni.showToast({ title: `${name}即将接入`, icon: 'none' })
-}
-
-function showSettings() {
-  showProfileEditor.value = true
 }
 
 function editProfile() {
@@ -472,21 +452,8 @@ onShow(loadProfile)
   background: linear-gradient(135deg, #25d3de 0%, #0d98da 100%);
 }
 
-.hero-icons {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  font-size: 32rpx;
-}
-
-.right-icons {
-  display: flex;
-  gap: 34rpx;
-}
-
 .hero-title {
   display: block;
-  margin-top: 6rpx;
   text-align: center;
   font-size: 44rpx;
   font-weight: 800;

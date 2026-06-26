@@ -287,19 +287,19 @@
         <div class="stats-grid fade-in">
             <div class="stat-card">
                 <div class="stat-label"><i class="bi bi-wallet2"></i> 全平台总余额</div>
-                <div class="stat-value net {{ 'positive' if balance >= 0 else 'negative' }}">¥{{ "%.2f"|format(balance) }}</div>
+                <div id="statBalance" class="stat-value net {{ 'positive' if balance >= 0 else 'negative' }}">¥{{ "%.2f"|format(balance) }}</div>
             </div>
             <div class="stat-card">
                 <div class="stat-label"><i class="bi bi-arrow-up-circle"></i> 总收入</div>
-                <div class="stat-value income">¥{{ "%.2f"|format(total_income) }}</div>
+                <div id="statIncome" class="stat-value income">¥{{ "%.2f"|format(total_income) }}</div>
             </div>
             <div class="stat-card">
                 <div class="stat-label"><i class="bi bi-arrow-down-circle"></i> 总支出</div>
-                <div class="stat-value expense">¥{{ "%.2f"|format(total_expense) }}</div>
+                <div id="statExpense" class="stat-value expense">¥{{ "%.2f"|format(total_expense) }}</div>
             </div>
             <div class="stat-card">
                 <div class="stat-label"><i class="bi bi-calendar-today"></i> 今日净收支</div>
-                <div class="stat-value net {{ 'positive' if today_income - today_expense >= 0 else 'negative' }}">¥{{ "%.2f"|format(today_income - today_expense) }}</div>
+                <div id="statTodayNet" class="stat-value net {{ 'positive' if today_income - today_expense >= 0 else 'negative' }}">¥{{ "%.2f"|format(today_income - today_expense) }}</div>
             </div>
         </div>
 
@@ -317,7 +317,7 @@
                             <th>净余额</th>
                         </tr>
                     </thead>
-                    <tbody>
+                    <tbody id="userStatsBody">
                         {% for u in user_stats %}
                         <tr>
                             <td><strong>{{ u.username }}</strong></td>
@@ -354,7 +354,7 @@
         <!-- 所有交易记录 -->
         <div class="panel fade-in" id="userManagementPanel">
             <div class="panel-title"><i class="bi bi-person-gear"></i> 普通用户账号管理</div>
-            <div class="status-text" id="userMgmtStatus">可为普通用户重置密码，或删除未产生业务数据的空账号。</div>
+            <div class="status-text" id="userMgmtStatus">可为普通用户重置密码，或删除普通用户及其关联数据。</div>
             <div class="account-tools">
                 <input id="userMgmtSearch" class="account-search" type="text" placeholder="搜索用户名或邮箱" oninput="renderUserManagementTable()">
             </div>
@@ -436,12 +436,107 @@
                 const data = await res.json();
                 if (data.success) {
                     allTxs = data.transactions || [];
+                    renderDashboardSummary();
+                    renderUserStatsTable();
+                    renderUserFilterOptions();
                     applyFilters();
                     renderCharts();
+                    return true;
                 }
             } catch (e) {
                 document.getElementById('txBody').innerHTML = '<tr><td colspan="6" class="text-center py-4 text-danger">加载失败</td></tr>';
             }
+            return false;
+        }
+
+        function renderDashboardSummary() {
+            const totalIncome = allTxs
+                .filter(t => t.type === 'income')
+                .reduce((sum, t) => sum + parseFloat(t.amount || 0), 0);
+            const totalExpense = allTxs
+                .filter(t => t.type === 'expense')
+                .reduce((sum, t) => sum + parseFloat(t.amount || 0), 0);
+            const today = new Date().toISOString().split('T')[0];
+            const todayNet = allTxs
+                .filter(t => t.date === today)
+                .reduce((sum, t) => {
+                    const amount = parseFloat(t.amount || 0);
+                    return sum + (t.type === 'income' ? amount : -amount);
+                }, 0);
+
+            setMoneyValue('statBalance', totalIncome - totalExpense, true);
+            setMoneyValue('statIncome', totalIncome);
+            setMoneyValue('statExpense', totalExpense);
+            setMoneyValue('statTodayNet', todayNet, true);
+        }
+
+        function setMoneyValue(id, value, markPositiveNegative = false) {
+            const el = document.getElementById(id);
+            if (!el) return;
+            el.textContent = `¥${Number(value || 0).toFixed(2)}`;
+            if (markPositiveNegative) {
+                el.classList.toggle('positive', value >= 0);
+                el.classList.toggle('negative', value < 0);
+            }
+        }
+
+        function renderUserStatsTable() {
+            const tbody = document.getElementById('userStatsBody');
+            if (!tbody) return;
+
+            const statsByUser = new Map();
+            allUsers
+                .filter(u => !u.is_admin)
+                .forEach(u => {
+                    statsByUser.set(String(u.id), {
+                        username: u.username || '-',
+                        count: 0,
+                        income: 0,
+                        expense: 0,
+                    });
+                });
+
+            allTxs.forEach(t => {
+                const key = String(t.user_id || '');
+                if (!statsByUser.has(key)) return;
+                const stat = statsByUser.get(key);
+                const amount = parseFloat(t.amount || 0);
+                stat.count += 1;
+                if (t.type === 'income') stat.income += amount;
+                if (t.type === 'expense') stat.expense += amount;
+            });
+
+            const rows = Array.from(statsByUser.values());
+            if (!rows.length) {
+                tbody.innerHTML = '<tr><td colspan="5" class="text-center py-4 text-muted">暂无普通用户</td></tr>';
+                return;
+            }
+
+            tbody.innerHTML = rows.map(u => {
+                const balance = u.income - u.expense;
+                return `
+                    <tr>
+                        <td><strong>${escapeHtml(u.username)}</strong></td>
+                        <td>${u.count}</td>
+                        <td class="text-success fw-bold">¥${u.income.toFixed(2)}</td>
+                        <td class="text-danger fw-bold">¥${u.expense.toFixed(2)}</td>
+                        <td class="fw-bold ${balance >= 0 ? 'text-success' : 'text-danger'}">¥${balance.toFixed(2)}</td>
+                    </tr>
+                `;
+            }).join('');
+        }
+
+        function renderUserFilterOptions() {
+            const select = document.getElementById('userFilter');
+            if (!select) return;
+
+            const selected = select.value;
+            const normalUsers = allUsers.filter(u => !u.is_admin);
+            const validIds = new Set(normalUsers.map(u => String(u.id)));
+            select.innerHTML = '<option value="">全部用户</option>' + normalUsers.map(u =>
+                `<option value="${u.id}">${escapeHtml(u.username || '-')}</option>`
+            ).join('');
+            select.value = validIds.has(selected) ? selected : '';
         }
 
         function applyFilters() {
@@ -477,8 +572,8 @@
             document.getElementById('userFilter').value = '';
             document.getElementById('typeFilter').value = '';
             document.getElementById('periodFilter').value = '';
-            currentPage = 1;
-            renderTable(allTxs);
+            applyFilters();
+            renderCharts();
         }
 
         function setUserMgmtStatus(message, isError = false) {
@@ -534,7 +629,7 @@
         }
 
         async function deleteUser(userId, username) {
-            const confirmed = window.confirm(`确定要删除用户 ${username} 吗？仅允许删除没有业务数据的普通用户。`);
+            const confirmed = window.confirm(`确定要删除用户 ${username} 吗？该操作会同时删除该用户的交易、账户、预算等关联数据，且不可恢复。`);
             if (!confirmed) return;
 
             try {
@@ -544,7 +639,14 @@
                 if (data.success) {
                     const index = allUsers.findIndex(u => u.id === userId);
                     if (index >= 0) allUsers.splice(index, 1);
+                    allTxs = allTxs.filter(t => t.user_id != userId);
                     renderUserManagementTable();
+                    renderDashboardSummary();
+                    renderUserStatsTable();
+                    renderUserFilterOptions();
+                    applyFilters();
+                    renderCharts();
+                    await loadTransactions();
                 }
             } catch (error) {
                 setUserMgmtStatus('删除失败，请稍后重试', true);

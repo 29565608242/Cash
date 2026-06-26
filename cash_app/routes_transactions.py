@@ -6,7 +6,24 @@ from flask import jsonify, request, session
 from .app_state import app, config, db
 from .auth import login_required, admin_required, require_ledger_access, get_current_ledger_id
 from .core import CURRENCY_NAMES, get_exchange_rate
-from .models import Account, Budget, BudgetCategoryItem, Category, ExportTask, FileUpload, MoneyChangeLog, Transaction, TransactionSplit, User
+from .models import (
+    AIAnalysis,
+    Account,
+    Budget,
+    BudgetCategoryItem,
+    Category,
+    ExportTask,
+    FileUpload,
+    InviteCode,
+    Ledger,
+    LedgerMember,
+    Loan,
+    MoneyChangeLog,
+    RecurringRule,
+    Transaction,
+    TransactionSplit,
+    User,
+)
 from .support import filter_transactions_by_period_orm, get_balance, log_money_change
 
 
@@ -81,6 +98,126 @@ def _sync_transaction_splits(tx, split_details):
             amount=item['amount'],
             share_type=item.get('share_type') or 'equal',
         ))
+
+
+def _delete_user_owned_ledgers(user_id):
+    ledgers = Ledger.query.filter_by(owner_id=user_id).all()
+    for ledger in ledgers:
+        replacement = LedgerMember.query.filter(
+            LedgerMember.ledger_id == ledger.id,
+            LedgerMember.user_id != user_id
+        ).order_by(LedgerMember.id.asc()).first()
+
+        if replacement:
+            ledger.owner_id = replacement.user_id
+            replacement.role = 'manager'
+            InviteCode.query.filter_by(created_by=user_id, ledger_id=ledger.id).delete(synchronize_session=False)
+            continue
+
+        ledger_ids = [ledger.id]
+        ledger_transaction_ids = [
+            row[0] for row in db.session.query(Transaction.id).filter(Transaction.ledger_id == ledger.id).all()
+        ]
+        ledger_budget_ids = [
+            row[0] for row in db.session.query(Budget.id).filter(Budget.ledger_id == ledger.id).all()
+        ]
+        ledger_account_ids = [
+            row[0] for row in db.session.query(Account.id).filter(Account.ledger_id == ledger.id).all()
+        ]
+
+        Transaction.query.filter(Transaction.write_off_id.in_(ledger_transaction_ids)).update(
+            {
+                Transaction.reimbursement_status: 'none',
+                Transaction.reimbursed_amount: 0,
+                Transaction.write_off_id: None,
+            },
+            synchronize_session=False
+        )
+        Transaction.query.filter(Transaction.id.in_(ledger_transaction_ids)).update(
+            {Transaction.write_off_id: None},
+            synchronize_session=False
+        )
+        BudgetCategoryItem.query.filter(BudgetCategoryItem.budget_id.in_(ledger_budget_ids)).delete(synchronize_session=False)
+        MoneyChangeLog.query.filter(MoneyChangeLog.ledger_id.in_(ledger_ids)).delete(synchronize_session=False)
+        MoneyChangeLog.query.filter(MoneyChangeLog.account_id.in_(ledger_account_ids)).delete(synchronize_session=False)
+        RecurringRule.query.filter(RecurringRule.ledger_id.in_(ledger_ids)).delete(synchronize_session=False)
+        Loan.query.filter(Loan.ledger_id.in_(ledger_ids)).delete(synchronize_session=False)
+        Budget.query.filter(Budget.ledger_id.in_(ledger_ids)).delete(synchronize_session=False)
+        TransactionSplit.query.filter(TransactionSplit.transaction_id.in_(ledger_transaction_ids)).delete(synchronize_session=False)
+        Transaction.query.filter(Transaction.ledger_id.in_(ledger_ids)).delete(synchronize_session=False)
+        Account.query.filter(Account.ledger_id.in_(ledger_ids)).delete(synchronize_session=False)
+        InviteCode.query.filter(InviteCode.ledger_id.in_(ledger_ids)).delete(synchronize_session=False)
+        LedgerMember.query.filter(LedgerMember.ledger_id.in_(ledger_ids)).delete(synchronize_session=False)
+        db.session.delete(ledger)
+
+
+def _delete_user_related_data(user_id):
+    user_transaction_ids = [
+        row[0] for row in db.session.query(Transaction.id).filter(Transaction.user_id == user_id).all()
+    ]
+    user_budget_ids = [
+        row[0] for row in db.session.query(Budget.id).filter(Budget.user_id == user_id).all()
+    ]
+    user_account_ids = [
+        row[0] for row in db.session.query(Account.id).filter(Account.user_id == user_id).all()
+    ]
+
+    Transaction.query.filter(Transaction.write_off_id.in_(user_transaction_ids)).update(
+        {
+            Transaction.reimbursement_status: 'none',
+            Transaction.reimbursed_amount: 0,
+            Transaction.write_off_id: None,
+        },
+        synchronize_session=False
+    )
+    Transaction.query.filter(Transaction.id.in_(user_transaction_ids)).update(
+        {Transaction.write_off_id: None},
+        synchronize_session=False
+    )
+    Transaction.query.filter(Transaction.payer_user_id == user_id).update(
+        {Transaction.payer_user_id: None},
+        synchronize_session=False
+    )
+
+    TransactionSplit.query.filter(
+        db.or_(
+            TransactionSplit.user_id == user_id,
+            TransactionSplit.transaction_id.in_(user_transaction_ids)
+        )
+    ).delete(synchronize_session=False)
+    BudgetCategoryItem.query.filter(BudgetCategoryItem.budget_id.in_(user_budget_ids)).delete(synchronize_session=False)
+
+    MoneyChangeLog.query.filter(MoneyChangeLog.user_id == user_id).delete(synchronize_session=False)
+    AIAnalysis.query.filter(AIAnalysis.user_id == user_id).delete(synchronize_session=False)
+    ExportTask.query.filter(ExportTask.user_id == user_id).delete(synchronize_session=False)
+    FileUpload.query.filter(FileUpload.user_id == user_id).delete(synchronize_session=False)
+    RecurringRule.query.filter(RecurringRule.user_id == user_id).delete(synchronize_session=False)
+    Loan.query.filter(Loan.user_id == user_id).delete(synchronize_session=False)
+    Budget.query.filter(Budget.user_id == user_id).delete(synchronize_session=False)
+    Transaction.query.filter(Transaction.user_id == user_id).delete(synchronize_session=False)
+
+    MoneyChangeLog.query.filter(MoneyChangeLog.account_id.in_(user_account_ids)).delete(synchronize_session=False)
+    RecurringRule.query.filter(RecurringRule.account_id.in_(user_account_ids)).update(
+        {RecurringRule.account_id: None},
+        synchronize_session=False
+    )
+    Budget.query.filter(Budget.account_id.in_(user_account_ids)).update(
+        {Budget.account_id: None},
+        synchronize_session=False
+    )
+    Transaction.query.filter(Transaction.account_id.in_(user_account_ids)).update(
+        {Transaction.account_id: None},
+        synchronize_session=False
+    )
+    Transaction.query.filter(Transaction.target_account_id.in_(user_account_ids)).update(
+        {Transaction.target_account_id: None},
+        synchronize_session=False
+    )
+    Account.query.filter(Account.user_id == user_id).delete(synchronize_session=False)
+
+    InviteCode.query.filter(InviteCode.created_by == user_id).delete(synchronize_session=False)
+    _delete_user_owned_ledgers(user_id)
+    LedgerMember.query.filter(LedgerMember.user_id == user_id).delete(synchronize_session=False)
 
 
 def _apply_transaction_extras(tx, payload, default_include=True):
@@ -282,7 +419,7 @@ def handle_transactions():
                 if user_id and is_admin and not self_view:
                     total = Transaction.query.count()
                 elif user_id:
-                    total = Transaction.query.filter(Transaction.user_id == user_id).count()
+                    total = Transaction.query.filter(Transaction.user_id == user_id, Transaction.ledger_id.is_(None)).count()
                 else:
                     total = 0
             total_pages = pagination.pages
@@ -299,7 +436,7 @@ def handle_transactions():
                 if user_id and is_admin and not self_view:
                     total = Transaction.query.count()
                 elif user_id:
-                    total = Transaction.query.filter(Transaction.user_id == user_id).count()
+                    total = Transaction.query.filter(Transaction.user_id == user_id, Transaction.ledger_id.is_(None)).count()
                 else:
                     total = 0
             total_pages = 1
@@ -416,13 +553,17 @@ def handle_transactions():
             current_ledger_id = get_current_ledger_id()
             if account_id:
                 account = Account.query.filter_by(id=account_id).first()
-                if not account or (current_ledger_id and account.ledger_id != current_ledger_id):
+                if (
+                    not account
+                    or (current_ledger_id and account.ledger_id != current_ledger_id)
+                    or (not current_ledger_id and (account.user_id != user_id or account.ledger_id is not None))
+                ):
                     return jsonify({"success": False, "message": "账户不存在或不属于当前账本"}), 400
             else:
                 if current_ledger_id:
                     account = Account.query.filter_by(ledger_id=current_ledger_id).first()
                 else:
-                    account = Account.query.filter_by(user_id=user_id).first()
+                    account = Account.query.filter_by(user_id=user_id, ledger_id=None).first()
                 if not account:
                     account = Account(name='默认账户', balance=0, account_type='cash', user_id=user_id, ledger_id=current_ledger_id)
                     db.session.add(account)
@@ -438,7 +579,11 @@ def handle_transactions():
                 if target_account_id == account_id:
                     return jsonify({"success": False, "message": "转入账户不能与转出账户相同"}), 400
                 target_account = Account.query.filter_by(id=target_account_id).first()
-                if not target_account or (current_ledger_id and target_account.ledger_id != current_ledger_id):
+                if (
+                    not target_account
+                    or (current_ledger_id and target_account.ledger_id != current_ledger_id)
+                    or (not current_ledger_id and (target_account.user_id != user_id or target_account.ledger_id is not None))
+                ):
                     return jsonify({"success": False, "message": "转入账户不存在或不属于当前账本"}), 400
             else:
                 target_account_id = None
@@ -502,6 +647,8 @@ def handle_transactions():
                     budget_filter = {'user_id': user_id, 'month': month}
                     if current_ledger_id:
                         budget_filter['ledger_id'] = current_ledger_id
+                    else:
+                        budget_filter['ledger_id'] = None
                     if account_id:
                         budget_filter['account_id'] = account_id
                         budget = Budget.query.filter_by(**budget_filter).first()
@@ -522,7 +669,7 @@ def handle_transactions():
                         if current_ledger_id:
                             expense_filter.append(Transaction.ledger_id == current_ledger_id)
                         else:
-                            expense_filter.append(Transaction.user_id == user_id)
+                            expense_filter.extend([Transaction.user_id == user_id, Transaction.ledger_id.is_(None)])
                         if budget.account_id:
                             expense_filter.append(Transaction.account_id == budget.account_id)
                         month_expenses = db.session.query(db.func.sum(Transaction.amount)).filter(
@@ -558,7 +705,7 @@ def handle_transactions():
                             if current_ledger_id:
                                 cat_exp_filter.append(Transaction.ledger_id == current_ledger_id)
                             else:
-                                cat_exp_filter.append(Transaction.user_id == user_id)
+                                cat_exp_filter.extend([Transaction.user_id == user_id, Transaction.ledger_id.is_(None)])
                             if budget.account_id:
                                 cat_exp_filter.append(Transaction.account_id == budget.account_id)
                             cat_expense = db.session.query(db.func.sum(Transaction.amount)).filter(
@@ -948,31 +1095,26 @@ def admin_reset_user_password(user_id):
 @app.route('/api/admin/users/<int:user_id>', methods=['DELETE'])
 @admin_required
 def admin_delete_user(user_id):
-    if session.get('self_view'):
-        return jsonify({"success": False, "message": "请在管理后台使用该功能"}), 403
+    try:
+        if session.get('self_view'):
+            return jsonify({"success": False, "message": "请在管理后台使用该功能"}), 403
 
-    target_user = User.query.get(user_id)
-    if not target_user:
-        return jsonify({"success": False, "message": "用户不存在"}), 404
-    if target_user.is_admin:
-        return jsonify({"success": False, "message": "不能删除管理员账号"}), 400
+        target_user = User.query.get(user_id)
+        if not target_user:
+            return jsonify({"success": False, "message": "用户不存在"}), 404
+        if target_user.is_admin:
+            return jsonify({"success": False, "message": "不能删除管理员账号"}), 400
 
-    has_related_data = any([
-        Transaction.query.filter_by(user_id=target_user.id).count() > 0,
-        Account.query.filter_by(user_id=target_user.id).count() > 0,
-        Budget.query.filter_by(user_id=target_user.id).count() > 0,
-        ExportTask.query.filter_by(user_id=target_user.id).count() > 0,
-        FileUpload.query.filter_by(user_id=target_user.id).count() > 0
-    ])
-    if has_related_data:
-        return jsonify({
-            "success": False,
-            "message": "该用户已有业务数据，暂不允许直接删除；请先清理关联数据后再试。"
-        }), 400
-
-    db.session.delete(target_user)
-    db.session.commit()
-    return jsonify({"success": True, "message": "用户已删除"})
+        username = target_user.username
+        _delete_user_related_data(target_user.id)
+        db.session.delete(target_user)
+        db.session.commit()
+        app.logger.info(f"管理员删除用户: id={user_id}, username={username}")
+        return jsonify({"success": True, "message": f"用户 {username} 已删除"})
+    except Exception as e:
+        db.session.rollback()
+        app.logger.error(f"管理员删除用户失败: user_id={user_id}, error={e}")
+        return jsonify({"success": False, "message": "删除用户失败，请检查关联数据后重试"}), 500
 
 
 @app.route('/api/transactions/<int:transaction_id>/write-off', methods=['POST'])
@@ -1103,7 +1245,7 @@ def list_reimbursements():
             query = query.filter(Transaction.ledger_id == current_ledger_id)
         elif user_id and not is_admin or (is_admin and self_view):
             # 普通用户或管理员 self_view 只能看到自己的数据
-            query = query.filter(Transaction.user_id == user_id)
+            query = query.filter(Transaction.user_id == user_id, Transaction.ledger_id.is_(None))
 
         if status_filter and status_filter != 'all':
             query = query.filter(Transaction.reimbursement_status == status_filter)
@@ -1166,7 +1308,7 @@ def list_reimbursements():
                 return Transaction.query.filter(*base_filter, Transaction.ledger_id == current_ledger_id).count()
             if is_admin and not self_view:
                 return Transaction.query.filter(*base_filter).count()
-            return Transaction.query.filter(*base_filter, Transaction.user_id == user_id).count()
+            return Transaction.query.filter(*base_filter, Transaction.user_id == user_id, Transaction.ledger_id.is_(None)).count()
 
         pending_count = _count_with_ledger([
             Transaction.type == 'expense',

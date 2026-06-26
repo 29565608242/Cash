@@ -181,7 +181,7 @@ class LedgerMember(db.Model):
     id = db.Column(db.Integer, primary_key=True, autoincrement=True)
     ledger_id = db.Column(db.Integer, db.ForeignKey('ledgers.id'), nullable=False)
     user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
-    role = db.Column(db.String(20), default='viewer')  # viewer, editor, manager
+    role = db.Column(db.String(20), default='editor')  # viewer, editor, manager
     joined_at = db.Column(db.DateTime, default=datetime.now)
 
     ledger = db.relationship('Ledger', backref=db.backref('members', lazy='dynamic'))

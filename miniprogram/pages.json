@@ -16,6 +16,18 @@
       }
     },
     {
+      "path": "pages/forgot-password/index",
+      "style": {
+        "navigationBarTitleText": "忘记密码"
+      }
+    },
+    {
+      "path": "pages/account-password/index",
+      "style": {
+        "navigationBarTitleText": "修改账号密码"
+      }
+    },
+    {
       "path": "pages/ledgers/index",
       "style": {
         "navigationBarTitleText": "账本列表"

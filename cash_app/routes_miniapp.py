@@ -10,7 +10,7 @@ from werkzeug.utils import secure_filename
 
 from .app_state import app, db
 from .auth import get_current_ledger_id, login_required
-from .models import Account, Budget, Ledger, LedgerMember, Transaction, User
+from .models import Account, Budget, Ledger, Transaction, User
 from .support import get_balance
 
 miniapp_bp = Blueprint('miniapp', __name__, url_prefix='/api/miniapp')
@@ -18,6 +18,8 @@ miniapp_bp = Blueprint('miniapp', __name__, url_prefix='/api/miniapp')
 # 开发阶段内存 token 存储；生产建议迁移到 Redis
 _tokens = {}  # {token: {'user_id': int, 'expires_at': float}}
 TOKEN_EXPIRE_SECONDS = 86400 * 7
+_password_reset_tokens = {}  # {reset_token: {'user_id': int, 'expires_at': float}}
+PASSWORD_RESET_EXPIRE_SECONDS = 15 * 60
 
 
 def _extract_token(auth_header):
@@ -43,6 +45,16 @@ def _prune_token(token):
     return info
 
 
+def _prune_password_reset_token(reset_token):
+    info = _password_reset_tokens.get(reset_token)
+    if not info:
+        return None
+    if info.get('expires_at', 0) <= time.time():
+        _password_reset_tokens.pop(reset_token, None)
+        return None
+    return info
+
+
 def set_token_active_ledger(auth_header, ledger_id):
     token = _extract_token(auth_header)
     if token and token in _tokens:
@@ -60,6 +72,16 @@ def generate_token(user_id, active_ledger_id=None):
     return token
 
 
+def generate_password_reset_token(user_id):
+    raw = f'reset:{user_id}:{time.time()}:{secrets.token_hex(16)}:{app.config["SECRET_KEY"]}'
+    reset_token = hashlib.sha256(raw.encode('utf-8')).hexdigest()
+    _password_reset_tokens[reset_token] = {
+        'user_id': user_id,
+        'expires_at': time.time() + PASSWORD_RESET_EXPIRE_SECONDS,
+    }
+    return reset_token
+
+
 def resolve_user_from_token(auth_header_or_token):
     token = _extract_token(auth_header_or_token)
     if not token:
@@ -70,11 +92,14 @@ def resolve_user_from_token(auth_header_or_token):
     return User.query.get(info['user_id'])
 
 
-def _apply_user_session(user):
+def _apply_user_session(user, active_ledger_id=None):
     g.user = user
     session['user_id'] = user.id
     session['is_admin'] = bool(user.is_admin)
     session['self_view'] = True
+    session.pop('active_ledger_id', None)
+    if active_ledger_id:
+        session['active_ledger_id'] = active_ledger_id
 
 
 def token_required(f):
@@ -88,11 +113,9 @@ def token_required(f):
         if not user:
             return jsonify({'success': False, 'message': '登录已过期，请重新登录'}), 401
 
-        _apply_user_session(user)
         # Restore active ledger from token store
         info = _prune_token(token)
-        if info and info.get('active_ledger_id'):
-            session['active_ledger_id'] = info['active_ledger_id']
+        _apply_user_session(user, info.get('active_ledger_id') if info else None)
         return f(*args, **kwargs)
 
     return decorated
@@ -114,23 +137,16 @@ def _build_auth_payload(user):
     }
 
 
-def _register_default_ledger_and_account(user):
-    ledger = Ledger(name=f'{user.username}的个人账本', owner_id=user.id)
-    db.session.add(ledger)
-    db.session.flush()
-
-    member = LedgerMember(ledger_id=ledger.id, user_id=user.id, role='manager')
-    db.session.add(member)
-
-    account = Account(
-        name='默认账户',
-        balance=0,
-        account_type='cash',
-        user_id=user.id,
-        ledger_id=ledger.id,
-    )
-    db.session.add(account)
-    session['active_ledger_id'] = ledger.id
+def _ensure_personal_account(user):
+    account = Account.query.filter_by(user_id=user.id, ledger_id=None).first()
+    if not account:
+        db.session.add(Account(
+            name='默认账户',
+            balance=0,
+            account_type='cash',
+            user_id=user.id,
+            ledger_id=None,
+        ))
 
 
 def _login_by_username_password():
@@ -145,15 +161,13 @@ def _login_by_username_password():
     if not user or not user.check_password(password):
         return jsonify({'success': False, 'message': '用户名或密码错误'}), 401
 
+    session.clear()
     user.last_login = datetime.now()
+    _ensure_personal_account(user)
+    _apply_user_session(user)
     db.session.commit()
 
-    # Preserve user's active ledger across logins
-    user_ledger_id = get_current_ledger_id()
-    token = generate_token(user.id, active_ledger_id=user_ledger_id)
-    _apply_user_session(user)
-    if user_ledger_id and not session.get('active_ledger_id'):
-        session['active_ledger_id'] = user_ledger_id
+    token = generate_token(user.id)
     return jsonify({'success': True, 'token': token, 'user': _build_auth_payload(user)})
 
 
@@ -177,11 +191,12 @@ def _register_by_username_password():
     db.session.add(user)
     db.session.flush()
 
-    _register_default_ledger_and_account(user)
+    session.clear()
+    _ensure_personal_account(user)
+    _apply_user_session(user)
     db.session.commit()
 
-    token = generate_token(user.id, active_ledger_id=session.get('active_ledger_id'))
-    _apply_user_session(user)
+    token = generate_token(user.id)
     return (
         jsonify({'success': True, 'token': token, 'user': _build_auth_payload(user)}),
         201,
@@ -215,6 +230,83 @@ def api_auth_logout():
         _tokens.pop(token, None)
     session.clear()
     return jsonify({'success': True, 'message': '已退出登录'})
+
+
+@app.route('/api/auth/forgot-password', methods=['POST'])
+def api_auth_forgot_password():
+    data = request.get_json(silent=True) or {}
+    username = (data.get('username') or '').strip()
+    email = (data.get('email') or '').strip()
+
+    if not username or not email:
+        return jsonify({'success': False, 'message': '用户名和邮箱必须填写'}), 400
+
+    user = User.query.filter_by(username=username).first()
+    if not user:
+        return jsonify({'success': False, 'message': '用户不存在'}), 404
+
+    if not user.email or user.email.strip().lower() != email.lower():
+        return jsonify({'success': False, 'message': '邮箱不匹配，请使用注册时填写的邮箱'}), 400
+
+    reset_token = generate_password_reset_token(user.id)
+    return jsonify({
+        'success': True,
+        'message': '身份验证通过，请设置新密码',
+        'reset_token': reset_token,
+    })
+
+
+@app.route('/api/auth/reset-password', methods=['POST'])
+def api_auth_reset_password():
+    data = request.get_json(silent=True) or {}
+    reset_token = (data.get('reset_token') or '').strip()
+    new_password = data.get('new_password') or ''
+    confirm_password = data.get('confirm_password') or ''
+
+    info = _prune_password_reset_token(reset_token)
+    if not info:
+        return jsonify({'success': False, 'message': '重置凭证已失效，请重新验证身份'}), 400
+
+    if not new_password or not confirm_password:
+        return jsonify({'success': False, 'message': '新密码和确认密码必须填写'}), 400
+    if new_password != confirm_password:
+        return jsonify({'success': False, 'message': '新密码和确认密码不一致'}), 400
+    if len(new_password) < 6:
+        return jsonify({'success': False, 'message': '新密码至少 6 位'}), 400
+
+    user = User.query.get(info['user_id'])
+    if not user:
+        _password_reset_tokens.pop(reset_token, None)
+        return jsonify({'success': False, 'message': '用户不存在'}), 404
+
+    user.set_password(new_password)
+    db.session.commit()
+    _password_reset_tokens.pop(reset_token, None)
+    return jsonify({'success': True, 'message': '密码重置成功，请使用新密码登录'})
+
+
+@app.route('/api/auth/change-password', methods=['POST'])
+def api_auth_change_password():
+    data = request.get_json(silent=True) or {}
+    username = (data.get('username') or '').strip()
+    current_password = data.get('current_password') or data.get('old_password') or ''
+    new_password = data.get('new_password') or ''
+    confirm_password = data.get('confirm_password') or new_password
+
+    if not username or not current_password or not new_password:
+        return jsonify({'success': False, 'message': '用户名、当前密码和新密码必须填写'}), 400
+    if new_password != confirm_password:
+        return jsonify({'success': False, 'message': '新密码和确认密码不一致'}), 400
+    if len(new_password) < 6:
+        return jsonify({'success': False, 'message': '新密码至少 6 位'}), 400
+
+    user = User.query.filter_by(username=username).first()
+    if not user or not user.check_password(current_password):
+        return jsonify({'success': False, 'message': '用户名或当前密码错误'}), 400
+
+    user.set_password(new_password)
+    db.session.commit()
+    return jsonify({'success': True, 'message': '密码修改成功，请使用新密码登录'})
 
 
 @app.route('/api/user/profile', methods=['GET'])
@@ -293,7 +385,7 @@ def miniapp_dashboard():
     if current_ledger_id:
         tx_filters.append(Transaction.ledger_id == current_ledger_id)
     else:
-        tx_filters.append(Transaction.user_id == user_id)
+        tx_filters.extend([Transaction.user_id == user_id, Transaction.ledger_id.is_(None)])
 
     month_income = db.session.query(db.func.sum(Transaction.amount)).filter(
         *tx_filters, Transaction.type == 'income', Transaction.date.startswith(month), stats_filter
@@ -315,11 +407,13 @@ def miniapp_dashboard():
     if current_ledger_id:
         accounts = Account.query.filter_by(ledger_id=current_ledger_id).all()
     else:
-        accounts = Account.query.filter_by(user_id=user_id).all()
+        accounts = Account.query.filter_by(user_id=user_id, ledger_id=None).all()
 
     budget_filter = {'user_id': user_id, 'month': month}
     if current_ledger_id:
         budget_filter['ledger_id'] = current_ledger_id
+    else:
+        budget_filter['ledger_id'] = None
     budget = Budget.query.filter_by(**budget_filter).first()
 
     response = {
@@ -327,7 +421,7 @@ def miniapp_dashboard():
         'data': {
             'date': today,
             'current_ledger_id': current_ledger_id,
-            'current_ledger_name': current_ledger.name if current_ledger else None,
+            'current_ledger_name': current_ledger.name if current_ledger else '个人模式',
             'summary': {
                 'today_income': float(today_income),
                 'today_expense': float(today_expense),

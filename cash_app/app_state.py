@@ -1,14 +1,10 @@
 ﻿import os
-import sys
 
 from flask import Flask
 from flask_cors import CORS
 from flask_sqlalchemy import SQLAlchemy
 
 from config import get_config
-
-if __name__ == '__main__':
-    sys.modules['app'] = sys.modules['__main__']
 
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 app = Flask(

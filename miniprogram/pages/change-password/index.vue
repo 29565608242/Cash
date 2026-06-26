@@ -1,8 +1,8 @@
 <template>
   <view class="page-wrap">
     <view class="card">
-      <input class="input" v-model="oldPwd" type="password" placeholder="旧密码" />
-      <input class="input" v-model="newPwd" type="password" placeholder="新密码（至少6位）" />
+      <input class="input" v-model="oldPwd" type="password" password="true" placeholder="旧密码" />
+      <input class="input" v-model="newPwd" type="password" password="true" placeholder="新密码（至少6位）" />
       <view class="btn-primary" @tap="submit">修改密码</view>
     </view>
   </view>
